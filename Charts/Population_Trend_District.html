@@ -2,7 +2,7 @@
 <html lang='en'>
 <head>
 <meta charset='utf-8'>
-<title>Population Visualization</title>
+<title>Population Visualization (Scaled Fonts with Minimums)</title>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
 <link href='https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&display=swap' rel='stylesheet'>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js'></script>
@@ -10,16 +10,14 @@
   html, body { margin: 0; padding: 0; height: 100%; font-family: 'IBM Plex Sans', sans-serif; background: transparent; }
   .chart-wrap { width: 100%; height: 100vh; }
   svg { width: 100%; height: 100%; background: transparent; display: block; }
-  .x-axis text { font-size: 13px; }
   .y-axis, .y-axis path, .y-axis .tick line, .y-axis .domain { display: none; }
-  .marker { fill: #fff; stroke: #196533; stroke-width: 2px; }
-  .legend text { font-size: 14px; }
-  .label-fw rect { fill: #196533; rx: 4; ry: 4; }
-  .label-fw text { fill: #fff; font-size: 15px; font-weight: 600; }
-  .label-sw { fill: #196533; font-size: 15px; font-weight: 700; }
-  .growth { fill: #196533; font-size: 15px; font-weight: 700; }
-  .ref-line { stroke: #196533; stroke-dasharray: 5 4; stroke-width: 1.5px; }
-  .tooltip { position: fixed; background: #fff; border: 1px solid #ccc; padding: 8px; border-radius: 6px; font-size: 13px; display: none; }
+  .marker { fill: #fff; stroke: #196533; }
+  .label-fw rect { fill: #196533; }
+  .label-fw text { fill: #fff; font-weight: 600; }
+  .label-sw { fill: #196533; font-weight: 700; }
+  .growth { fill: #196533; font-weight: 700; }
+  .ref-line { stroke: #196533; }
+  .tooltip { position: fixed; background: #fff; border: 1px solid #ccc; display: none; }
 </style>
 </head>
 <body>
@@ -30,8 +28,6 @@
 <script>
 const url = 'https://adithyaajith-j.github.io/FDTMP_WebAPP/ChartData/FDTMP_Population_Statewide.csv';
 const GREEN = '#196533';
-const FW_WIDTH = 4, SW_WIDTH = 2;
-const DASH = '5 4';
 const markerYears = [2000,2010,2020,2024,2030,2040,2050];
 const labelYears = [2000,2024,2050];
 const projectionStart = 2024;
@@ -50,96 +46,183 @@ function getValueAt(series,year){
   return a.value + t * (b.value - a.value);
 }
 
-function render(data){
+function render(raw){
   svg.selectAll('*').remove();
   const container = document.querySelector('.chart-wrap');
   const width = container.clientWidth;
   const height = container.clientHeight || 500;
-  const margin = {top: 90, right: 30, bottom: 50, left: 40};
+
+  // Base design size, elements scale relative to this
+  const DESIGN_W = 900, DESIGN_H = 520;
+  const s = Math.min(width / DESIGN_W, height / DESIGN_H);
+
+  // Helper: scale size with a floor (minimum in px)
+  const sz = (base, minPx) => Math.max(minPx, base * s);
+
+  // ---- Visual sizing ----
+  const margin = { top: 90*s, right: 30*s, bottom: 50*s, left: 40*s };
+
+  // Fonts with minimums
+  const AXIS_FZ   = sz(15, 17);  // axis tick labels (min 11px)
+  const LEGEND_FZ = sz(16, 18);  // legend text (min 12px)
+  const LABEL_FZ  = sz(16, 18);  // value labels (min 12px)
+  const GROWTH_FZ = sz(16, 18);  // growth % labels (min 12px)
+  const TIP_FZ    = sz(15, 17);  // tooltip font (min 11px)
+
+  // Other visuals (no minimums required, but you can add if desired)
+  const FW_WIDTH = 4*s, SW_WIDTH = 2*s, MARKER_R = 5*s;
+  const PILL_PAD_X = 8*s, PILL_PAD_Y = 5*s, PILL_RX = 4*s;
+  const LEGEND_X2 = 36*s, LEGEND_TEXT_X = 44*s;
+  const REF_WIDTH = 1.5*s;
+  const DASH = `${5*s} ${4*s}`;
+
+  // Offsets tied to font sizes so spacing stays reasonable even when floors kick in
+  const LABEL_OFF_FW = 1.2 * LABEL_FZ; // ~18px at base
+  const LABEL_OFF_SW = 0.95 * LABEL_FZ; // ~14px at base
+  const GROWTH_OFF   = 1.45 * GROWTH_FZ; // ~22px at base
+  const LEGEND_Y_GAP = LEGEND_FZ * (20/14); // proportional to legend text size
+
   svg.attr('viewBox', `0 0 ${width} ${height}`);
 
+  const data = raw;
   const fwSeries = data.map(d => ({year: +d.Year, value: +d['Fort Worth']})).sort((a,b) => a.year - b.year);
   const swSeries = data.map(d => ({year: +d.Year, value: +d.Statewide})).sort((a,b) => a.year - b.year);
 
   const x = d3.scaleLinear().domain([2000,2050]).range([margin.left, width - margin.right]);
   const y = d3.scaleLinear().domain(d3.extent([...fwSeries.map(d => d.value), ...swSeries.map(d => d.value)])).nice().range([height - margin.bottom, margin.top]);
 
+  // X axis with scaled font-size and a minimum
   const xAxis = d3.axisBottom(x).tickValues(markerYears.filter(y => y !== 2024)).tickFormat(d3.format('d'));
-  svg.append('g').attr('class','x-axis').attr('transform',`translate(0,${height-margin.bottom})`).call(xAxis);
+  const gx = svg.append('g').attr('class','x-axis').attr('transform',`translate(0,${height - margin.bottom})`).call(xAxis);
+  gx.selectAll('text').style('font-size', `${AXIS_FZ}px`);
 
-  const valFW = getValueAt(fwSeries, 2024);
-  const valSW = getValueAt(swSeries, 2024);
-  const maxVal2024 = Math.max(valFW, valSW);
-  svg.append('line').attr('class','ref-line').attr('x1',x(2024)).attr('x2',x(2024)).attr('y1',y(maxVal2024)).attr('y2',height-margin.bottom);
+  // Reference line at 2024 from max(FW,SW) down to axis
+  const valFW2024 = getValueAt(fwSeries, 2024);
+  const valSW2024 = getValueAt(swSeries, 2024);
+  const maxVal2024 = Math.max(valFW2024, valSW2024);
+  svg.append('line').attr('class','ref-line').attr('x1', x(2024)).attr('x2', x(2024)).attr('y1', y(maxVal2024)).attr('y2', height - margin.bottom).attr('stroke-width', REF_WIDTH).attr('stroke-dasharray', DASH);
 
   const line = d3.line().x(d => x(d.year)).y(d => y(d.value)).curve(d3.curveMonotoneX);
+
   function drawSeries(series, isFW){
     const solid = series.filter(d => d.year <= projectionStart);
     const dotted = series.filter(d => d.year >= projectionStart);
-    svg.append('path').attr('fill','none').attr('stroke',GREEN).attr('stroke-width',isFW ? FW_WIDTH : SW_WIDTH).attr('d',line(solid));
-    svg.append('path').attr('fill','none').attr('stroke',GREEN).attr('stroke-width',isFW ? FW_WIDTH : SW_WIDTH).attr('stroke-dasharray',DASH).attr('d',line(dotted));
+    svg.append('path').attr('fill','none').attr('stroke', GREEN).attr('stroke-width', isFW ? FW_WIDTH : SW_WIDTH).attr('d', line(solid));
+    svg.append('path').attr('fill','none').attr('stroke', GREEN).attr('stroke-width', isFW ? FW_WIDTH : SW_WIDTH).attr('stroke-dasharray', DASH).attr('d', line(dotted));
   }
-  drawSeries(fwSeries,true); drawSeries(swSeries,false);
+  drawSeries(fwSeries, true);
+  drawSeries(swSeries, false);
 
   function drawMarkers(series){
     markerYears.forEach(yr => {
       const val = getValueAt(series, yr);
       if(val != null){
-        svg.append('circle').attr('class','marker').attr('r',5).attr('cx',x(yr)).attr('cy',y(val));
+        svg.append('circle')
+          .attr('class','marker')
+          .attr('r', MARKER_R)
+          .attr('cx', x(yr))
+          .attr('cy', y(val))
+          .attr('stroke-width', Math.max(1, 2*s));
       }
     });
   }
-  drawMarkers(fwSeries); drawMarkers(swSeries);
+  drawMarkers(fwSeries);
+  drawMarkers(swSeries);
 
-  const legend = svg.append('g').attr('transform',`translate(${margin.left+10},${margin.top-50})`);
-  legend.append('line').attr('x1',0).attr('x2',36).attr('y1',0).attr('y2',0).attr('stroke',GREEN).attr('stroke-width',FW_WIDTH);
-  legend.append('text').attr('x',44).attr('y',4).text('Fort Worth District Population');
-  legend.append('line').attr('x1',0).attr('x2',36).attr('y1',20).attr('y2',20).attr('stroke',GREEN).attr('stroke-width',SW_WIDTH);
-  legend.append('text').attr('x',44).attr('y',24).text('Statewide Population');
+  // Legend (scaled spacing and font with minimum)
+  const legend = svg.append('g').attr('class','legend').attr('transform',`translate(${margin.left + 10*s}, ${margin.top - 50*s})`);
+  legend.append('line').attr('x1',0).attr('x2',LEGEND_X2).attr('y1',0).attr('y2',0).attr('stroke',GREEN).attr('stroke-width',FW_WIDTH);
+  legend.append('text').attr('x',LEGEND_TEXT_X).attr('y',0 + 0.285*LEGEND_FZ) // ~4px at base
+        .style('font-size', `${LEGEND_FZ}px`).text('Fort Worth District');
+  legend.append('line').attr('x1',0).attr('x2',LEGEND_X2).attr('y1',LEGEND_Y_GAP).attr('y2',LEGEND_Y_GAP).attr('stroke',GREEN).attr('stroke-width',SW_WIDTH);
+  legend.append('text').attr('x',LEGEND_TEXT_X).attr('y',LEGEND_Y_GAP + 0.285*LEGEND_FZ)
+        .style('font-size', `${LEGEND_FZ}px`).text('Statewide');
 
   function drawLabels(series, isFW){
     labelYears.forEach(yr => {
       const val = getValueAt(series, yr);
       if(val != null){
-        const cx = x(yr), cy = y(val) - (isFW ? 18 : 14);
+        const cx = x(yr), cy = y(val) - (isFW ? LABEL_OFF_FW : LABEL_OFF_SW);
         if(isFW){
           const g = svg.append('g').attr('class','label-fw');
-          const t = g.append('text').attr('x',cx).attr('y',cy).attr('text-anchor','middle').text(formatMillions(val));
+          const t = g.append('text')
+            .attr('x', cx).attr('y', cy)
+            .attr('text-anchor','middle')
+            .style('font-size', `${LABEL_FZ}px`)
+            .text(formatMillions(val));
           const bb = t.node().getBBox();
-          g.insert('rect','text').attr('x',bb.x-8).attr('y',bb.y-5).attr('width',bb.width+16).attr('height',bb.height+10);
+          g.insert('rect','text')
+            .attr('x', bb.x - PILL_PAD_X)
+            .attr('y', bb.y - PILL_PAD_Y)
+            .attr('width', bb.width + 2*PILL_PAD_X)
+            .attr('height', bb.height + 2*PILL_PAD_Y)
+            .attr('rx', PILL_RX)
+            .attr('ry', PILL_RX);
         } else {
-          svg.append('text').attr('class','label-sw').attr('x',cx).attr('y',cy).attr('text-anchor','middle').text(formatMillions(val));
+          svg.append('text')
+            .attr('class','label-sw')
+            .attr('x', cx).attr('y', cy)
+            .attr('text-anchor','middle')
+            .style('font-size', `${LABEL_FZ}px`)
+            .text(formatMillions(val));
         }
       }
     });
   }
-  drawLabels(fwSeries,true); drawLabels(swSeries,false);
+  drawLabels(fwSeries, true);
+  drawLabels(swSeries, false);
 
   function drawGrowth(series){
-    const g1 = (getValueAt(series,2024)-getValueAt(series,2000))/getValueAt(series,2000)*100;
-    const g2 = (getValueAt(series,2050)-getValueAt(series,2024))/getValueAt(series,2024)*100;
+    const base2000 = getValueAt(series,2000);
+    const base2024 = getValueAt(series,2024);
+    const g1 = base2000 ? (getValueAt(series,2024)-base2000)/base2000*100 : 0;
+    const g2 = base2024 ? (getValueAt(series,2050)-base2024)/base2024*100 : 0;
     const mid1 = (2000+2024)/2, mid2 = (2024+2050)/2;
-    svg.append('text').attr('class','growth').attr('x',x(mid1)).attr('y',y(getValueAt(series,mid1))-22).attr('text-anchor','middle').text(formatPercent(g1));
-    svg.append('text').attr('class','growth').attr('x',x(mid2)).attr('y',y(getValueAt(series,mid2))-22).attr('text-anchor','middle').text(formatPercent(g2));
+    svg.append('text')
+      .attr('class','growth')
+      .attr('x', x(mid1))
+      .attr('y', y(getValueAt(series, mid1)) - GROWTH_OFF)
+      .attr('text-anchor','middle')
+      .style('font-size', `${GROWTH_FZ}px`)
+      .text(formatPercent(g1));
+    svg.append('text')
+      .attr('class','growth')
+      .attr('x', x(mid2))
+      .attr('y', y(getValueAt(series, mid2)) - GROWTH_OFF)
+      .attr('text-anchor','middle')
+      .style('font-size', `${GROWTH_FZ}px`)
+      .text(formatPercent(g2));
   }
-  drawGrowth(fwSeries); drawGrowth(swSeries);
+  drawGrowth(fwSeries);
+  drawGrowth(swSeries);
 
-  svg.on('mousemove',function(event){
+  // Tooltip scaled with floor
+  tooltip
+    .style('font-size', `${TIP_FZ}px`)
+    .style('padding', `${sz(8, 6)}px`)
+    .style('border-radius', `${sz(6, 4)}px`);
+
+  // Mouse interactions
+  svg.on('mousemove', function(event){
     const [mx] = d3.pointer(event);
     const year = Math.round(x.invert(mx));
     const nearest = markerYears.reduce((a,b) => Math.abs(b-year) < Math.abs(a-year) ? b : a);
-    const fw = getValueAt(fwSeries,nearest), sw = getValueAt(swSeries,nearest);
-    if(fw || sw){
-      tooltip.style('display','block').style('left',(event.clientX+10)+'px').style('top',(event.clientY-10)+'px')
+    const fw = getValueAt(fwSeries, nearest), sw = getValueAt(swSeries, nearest);
+    if(fw != null || sw != null){
+      tooltip.style('display','block')
+        .style('left', (event.clientX + 10) + 'px')
+        .style('top', (event.clientY - 10) + 'px')
         .html(`<strong>Year ${nearest}</strong><br>Statewide: ${formatMillions(sw)}<br>Fort Worth: ${formatMillions(fw)}`);
     } else {
       tooltip.style('display','none');
     }
-  }).on('mouseleave',() => tooltip.style('display','none'));
+  }).on('mouseleave', () => tooltip.style('display','none'));
 }
 
-d3.csv(url).then(render);
-window.addEventListener('resize', () => d3.csv(url).then(render));
+// Load once; re-render on resize without re-fetching
+let cached = null;
+d3.csv(url).then(data => { cached = data; render(cached); });
+window.addEventListener('resize', () => { if (cached) render(cached); });
 </script>
 </body>
 </html>
