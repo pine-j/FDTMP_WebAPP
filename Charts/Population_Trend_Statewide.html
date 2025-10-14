@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FDTMP Population — Fort Worth vs Statewide (2000–2050)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #111827;           /* near-black */
+      --muted: #6b7280;        /* gray-500 */
+      --grid: #e5e7eb;         /* gray-200 */
+      --fortworth: #1f77b4;    /* blue */
+      --statewide: #ff7f0e;    /* orange */
+      --projected-dash: 4 4;   /* dotted */
+    }
+    html, body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      line-height: 1.35;
+    }
+    .wrap { max-width: 1024px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 1.1rem; margin: 0 0 6px 0; }
+    svg { width: 100%; height: auto; display: block; background: #fff; border: 1px solid #eee; border-radius: 8px; }
+    .axis text { fill: #374151; font-size: 12px; }
+    .axis path, .axis line { stroke: #9ca3af; stroke-width: 0.8; }
+    .grid line { stroke: var(--grid); stroke-width: 0.8; }
+    .legend { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin: 8px 0 0 0; color: #374151; font-size: 0.92rem; }
+    .legend-item { display: inline-flex; align-items: center; gap: 8px; }
+    .legend-swatch { width: 28px; height: 0; border-top: 3px solid currentColor; display: inline-block; }
+    .tooltip { position: absolute; pointer-events: none; background: rgba(255,255,255,0.95); border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
+    .focus-line { stroke: #9ca3af; stroke-dasharray: 4 4; pointer-events: none; }
+    .ref-2024 { stroke: #9ca3af; stroke-dasharray: 3 3; }
+    .series-label { font-size: 12px; fill: #374151; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+    .error { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; padding: 12px 14px; border-radius: 6px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Population (2000–2050)</h1>
+    <div id="chart"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <!-- D3 v7 -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script>
+  (function() {
+    const DATA_URL = "https://adithyaajith-j.github.io/FDTMP_WebAPP/ChartData/FDTMP_population.csv";
+
+    const yearStart = 2000;
+    const splitYear = 2024;  // solid up to and including 2024
+    const yearEnd   = 2050;
+    const margin = { top: 28, right: 28, bottom: 44, left: 76 };
+    const width  = 960;
+    const height = 520;
+
+    const container = d3.select("#chart");
+    const svg = container.append("svg")
+      .attr("viewBox", `0 0 ${width} ${height}`)
+      .attr("aria-label", "Fort Worth and Statewide population, observed vs projected");
+
+    const plot = svg.append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+    const innerW = width  - margin.left - margin.right;
+    const innerH = height - margin.top  - margin.bottom;
+
+    const x = d3.scaleLinear().range([0, innerW]).domain([yearStart, yearEnd]).nice();
+    const y = d3.scaleLinear().range([innerH, 0]);
+
+    const fmtComma = d3.format(",");
+    const lineGen = d3.line().defined(d => !isNaN(d.value)).x(d => x(d.year)).y(d => y(d.value));
+
+    function detectColumns(rows) {
+      const keys = rows.columns ?? Object.keys(rows[0]);
+      // Prefer exact names if present, fallback to regex
+      const yearKey = keys.includes('Year') ? 'Year' : (keys.find(k => /year/i.test(k)) || keys[0]);
+      const fortKey = keys.includes('Fort Worth') ? 'Fort Worth' : (keys.find(k => /fort\s*worth/i.test(k)) || keys[1]);
+      const stateKey = keys.includes('Statewide') ? 'Statewide' : (keys.find(k => /state/i.test(k) && k !== fortKey) || keys[2]);
+      return { yearKey, fortKey, stateKey };
+    }
+
+    function addGrid() {
+      plot.append("g").attr("class","grid").call(d3.axisLeft(y).ticks(6).tickSize(-innerW).tickFormat(""));
+      plot.append("g").attr("class","grid").attr("transform",`translate(0,${innerH})`).call(d3.axisBottom(x).ticks(10).tickSize(-innerH).tickFormat(""));
+    }
+
+    d3.csv(DATA_URL, d3.autoType).then(raw => {
+      if (!raw || !raw.length) throw new Error("No data found.");
+
+      const { yearKey, fortKey, stateKey } = detectColumns(raw);
+
+      const data = raw
+        .map(d => ({ year: +d[yearKey], fort: +d[fortKey], state: +d[stateKey] }))
+        .filter(d => Number.isFinite(d.year) && d.year >= yearStart && d.year <= yearEnd)
+        .sort((a,b) => d3.ascending(a.year, b.year));
+
+      const allVals = data.flatMap(d => [d.fort, d.state]).filter(v => Number.isFinite(v));
+      if (allVals.length === 0) throw new Error("No numeric values parsed for series.");
+      y.domain([Math.max(0, Math.floor(d3.min(allVals))), Math.ceil(d3.max(allVals))]).nice();
+
+      addGrid();
+
+      const xAxis = d3.axisBottom(x).ticks(12).tickFormat(d3.format("d"));
+      const yAxis = d3.axisLeft(y).ticks(6).tickFormat(d => fmtComma(d));
+
+      plot.append("g").attr("class", "axis").attr("transform", `translate(0,${innerH})`).call(xAxis);
+      plot.append("g").attr("class", "axis").call(yAxis).call(g => g.select(".domain").remove())
+        .append("text").attr("x", -margin.left + 10).attr("y", -14).attr("fill", "#374151").attr("text-anchor", "start").attr("font-size", 12).text("Population");
+
+      // Reference line at 2024
+      plot.append("line").attr("class","ref-2024").attr("x1", x(splitYear)).attr("x2", x(splitYear)).attr("y1", 0).attr("y2", innerH);
+      plot.append("text").attr("x", x(splitYear) + 6).attr("y", 14).attr("fill", "#6b7280").attr("font-size", 12).text("2024");
+
+      const series = [
+        { key: "fort",  label: fortKey  || "Fort Worth", color: getComputedStyle(document.documentElement).getPropertyValue('--fortworth').trim() || "#1f77b4" },
+        { key: "state", label: stateKey || "Statewide",  color: getComputedStyle(document.documentElement).getPropertyValue('--statewide').trim() || "#ff7f0e" }
+      ];
+
+      series.forEach(s => {
+        const arr = data.map(d => ({ year: d.year, value: d[s.key] }));
+        const observed  = arr.filter(d => d.year >= yearStart && d.year <= splitYear);
+        const projected = arr.filter(d => d.year >= splitYear && d.year <= yearEnd);
+
+        plot.append("path").datum(observed).attr("fill","none").attr("stroke", s.color).attr("stroke-width", 2.5).attr("d", lineGen);
+        plot.append("path").datum(projected).attr("fill","none").attr("stroke", s.color).attr("stroke-width", 2.5).attr("stroke-dasharray", getComputedStyle(document.documentElement).getPropertyValue('--projected-dash') || "4 4").attr("d", lineGen);
+
+        const lastObs = [...observed].reverse().find(d => Number.isFinite(d.value));
+        if (lastObs) plot.append("text").attr("class","series-label").attr("x", x(lastObs.year) + 6).attr("y", y(lastObs.value)).attr("dy","-0.35em").attr("fill", s.color).text(s.label);
+      });
+
+      // Minimal legend: just the two series
+      const legend = d3.select("#legend");
+      const items = legend.selectAll(null).data(series).enter().append("div").attr("class","legend-item");
+      items.append("span").attr("class","legend-swatch").style("color", d => d.color);
+      items.append("span").text(d => d.label);
+
+      // Tooltip & focus line
+      const tooltip = d3.select("body").append("div").attr("class","tooltip").style("opacity", 0);
+      const focusLine = plot.append("line").attr("class","focus-line").attr("y1", 0).attr("y2", innerH).style("opacity", 0);
+      const byYear = new Map(data.map(d => [d.year, d]));
+
+      const overlay = plot.append("rect").attr("fill","transparent").attr("pointer-events","all").attr("width", innerW).attr("height", innerH)
+        .on("mousemove", onMove).on("mouseenter", () => { tooltip.style("opacity", 1); focusLine.style("opacity", 1); })
+        .on("mouseleave", () => { tooltip.style("opacity", 0); focusLine.style("opacity", 0); });
+
+      function onMove(event) {
+        const [mx] = d3.pointer(event, overlay.node());
+        const yr = Math.max(yearStart, Math.min(yearEnd, Math.round(x.invert(mx))));
+        const row = byYear.get(yr);
+        if (!row) return;
+        focusLine.attr("x1", x(yr)).attr("x2", x(yr));
+        tooltip.html(`
+          <div style="font-weight:600; margin-bottom:4px;">${yr}</div>
+          <div><span style="color:${series[0].color}; font-weight:600;">${series[0].label}:</span> ${Number.isFinite(row.fort) ? fmtComma(row.fort) : '—'}</div>
+          <div><span style="color:${series[1].color}; font-weight:600;">${series[1].label}:</span> ${Number.isFinite(row.state) ? fmtComma(row.state) : '—'}</div>
+        `);
+        const { pageX, pageY } = event;
+        tooltip.style("left", (pageX + 14) + "px").style("top", (pageY - 10) + "px");
+      }
+    }).catch(err => {
+      console.error(err);
+      d3.select("#chart").append("div").attr("class","error").text("Sorry, the chart couldn’t be rendered. Check the CSV URL or column names.");
+    });
+  })();
+  </script>
+</body>
+</html>
