@@ -37,7 +37,6 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Population (2000–2050)</h1>
     <div id="chart"></div>
     <div class="legend" id="legend"></div>
   </div>
@@ -101,7 +100,9 @@
 
       addGrid();
 
-      const xAxis = d3.axisBottom(x).ticks(12).tickFormat(d3.format("d"));
+	const xAxis = d3.axisBottom(x)
+	  .tickValues([2000, 2010, 2020, 2030, 2040, 2050])
+	  .tickFormat(d3.format("d"));
       const yAxis = d3.axisLeft(y).ticks(6).tickFormat(d => fmtComma(d));
 
       plot.append("g").attr("class", "axis").attr("transform", `translate(0,${innerH})`).call(xAxis);
