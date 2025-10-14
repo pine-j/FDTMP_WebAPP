@@ -1,0 +1,15 @@
+I want to us D3 js to a data visualtaion.
+I want to use the data from this link to visualize the data in d3js
+
+https://adithyaajith-j.github.io/FDTMP_WebAPP/ChartData/FDTMP_Population_Statewide.csv
+
+The data visualization need to look like the attached image.
+1. On the X axis show the years 2000, 2010, 2020, 2030, 2040 and 2050
+2. On Y axis the population. The Y axis with Population ticks and axis is not needed to shown.
+3. The Fort Worth line need to be thicker than Statewide line. Use this color for both: #196533
+4. The ploted line from 2000 to 2024 needs to be solid line and 2024 to 2050 needs to be dotted for both Fort Worth and Statewide.
+5. Add interactive Tooltip element on hover/touch to show the data values.
+6. Add a dotted refrence line for 2024.
+7. Add label for the population rounded to millions for 2000, 2024 and 2050 for both statewide and fort worth. The Forthworth labels needs to be in a #196533 box and white font. The Statewidelabels can be #196533 bold font.
+
+Please generate a downloadable html file.
