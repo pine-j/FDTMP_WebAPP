@@ -35,44 +35,7 @@ const projectionStart = 2024;
 const svg = d3.select('#chart');
 const tooltip = d3.select('#tooltip');
 
-// Use the same options for both formatting and rounding,
-// so labels and growth match visually and numerically.
-const COMPACT_OPTS = {
-  rawMaxDecimals: 1,  // raw (<1K)
-  kDecimals: 1,       // <1M
-  mDecimals: 1,       // <1B
-  bDecimals: 1,       // >=1B
-  trimZeros: true,
-  useGrouping: false
-};
-
-// Conventional compact formatter: <1K raw, <1M K, <1B M, >=1B B
-function formatCompact(n, {
-  rawMaxDecimals = 1,
-  kDecimals = 1,
-  mDecimals = 1,
-  bDecimals = 1,
-  trimZeros = true,
-  useGrouping = false,
-} = {}) {
-  if (n == null || !isFinite(n)) return '';
-
-  const abs = Math.abs(n);
-  const sign = n < 0 ? -1 : 1;
-  const trim = s => trimZeros ? s.replace(/\.0+$|(\.\d*[1-9])0+$/, '$1') : s;
-  const toFixed = (val, decimals) => trim(val.toFixed(decimals));
-  const group = new Intl.NumberFormat(undefined, { useGrouping }).format;
-
-  if (abs < 1_000) {
-    if (Number.isInteger(n)) return useGrouping ? group(n) : String(n);
-    return trim(n.toFixed(Math.min(rawMaxDecimals, 6)));
-  }
-  if (abs < 1_000_000) return `${toFixed(sign * abs / 1_000, kDecimals)}K`;
-  if (abs < 1_000_000_000) return `${toFixed(sign * abs / 1_000_000, mDecimals)}M`;
-  return `${toFixed(sign * abs / 1_000_000_000, bDecimals)}B`;
-}
-
-
+function formatMillions(n){ return (n/1e6).toFixed(1)+'M'; }
 function formatPercent(p){ return Math.round(p)+'%'; }
 function getValueAt(series,year){
   const i = d3.bisector(d => d.year).left(series, year);
@@ -207,7 +170,7 @@ function render(raw){
             .attr('x', cx).attr('y', cy)
             .attr('text-anchor','middle')
             .style('font-size', `${LABEL_FZ}px`)
-            .text(formatCompact(val, COMPACT_OPTS));
+            .text(formatMillions(val));
           const bb = t.node().getBBox();
           g.insert('rect','text')
             .attr('x', bb.x - PILL_PAD_X)
@@ -222,72 +185,35 @@ function render(raw){
             .attr('x', cx).attr('y', cy)
             .attr('text-anchor','middle')
             .style('font-size', `${LABEL_FZ}px`)
-            .text(formatCompact(val, COMPACT_OPTS));
+            .text(formatMillions(val));
         }
       }
     });
   }
   drawLabels(fwSeries, true);
   drawLabels(swSeries, false);
-  
-  function compactRoundValue(n, opts = COMPACT_OPTS) {
-  if (n == null || !isFinite(n)) return NaN;
 
-  const { rawMaxDecimals = 2, kDecimals = 1, mDecimals = 1, bDecimals = 0 } = opts;
-  const abs = Math.abs(n);
-  const sign = n < 0 ? -1 : 1;
-
-  const roundTo = (val, decimals) => {
-    const f = Math.pow(10, decimals);
-    return Math.round(val * f) / f;
-  };
-
-  if (abs < 1_000) {
-    if (Number.isInteger(n)) return n;                 // keep integers
-    return sign * roundTo(abs, rawMaxDecimals);        // match raw decimals
+  function drawGrowth(series){
+    const base2000 = getValueAt(series,2000);
+    const base2024 = getValueAt(series,2024);
+    const g1 = base2000 ? (getValueAt(series,2024)-base2000)/base2000*100 : 0;
+    const g2 = base2024 ? (getValueAt(series,2050)-base2024)/base2024*100 : 0;
+    const mid1 = (2000+2024)/2, mid2 = (2024+2050)/2;
+    overlayG.append('text')
+      .attr('class','growth')
+      .attr('x', x(mid1))
+      .attr('y', y(getValueAt(series, mid1)) - GROWTH_OFF)
+      .attr('text-anchor','middle')
+      .style('font-size', `${GROWTH_FZ}px`)
+      .text(formatPercent(g1));
+    overlayG.append('text')
+      .attr('class','growth')
+      .attr('x', x(mid2))
+      .attr('y', y(getValueAt(series, mid2)) - GROWTH_OFF)
+      .attr('text-anchor','middle')
+      .style('font-size', `${GROWTH_FZ}px`)
+      .text(formatPercent(g2));
   }
-  if (abs < 1_000_000) return sign * roundTo(abs / 1e3, kDecimals) * 1e3; // K
-  if (abs < 1_000_000_000) return sign * roundTo(abs / 1e6, mDecimals) * 1e6; // M
-  return sign * roundTo(abs / 1e9, bDecimals) * 1e9;   // B
-}
-
-function pctChangeRounded(series, y0, y1, opts = COMPACT_OPTS) {
-  const v0raw = getValueAt(series, y0);
-  const v1raw = getValueAt(series, y1);
-
-  const v0 = compactRoundValue(v0raw, opts);
-  const v1 = compactRoundValue(v1raw, opts);
-
-  if (!isFinite(v0) || !isFinite(v1) || v0 === 0) return null; // avoid div-by-zero
-  return ((v1 - v0) / Math.abs(v0)) * 100;
-}
-
-function drawGrowth(series){
-  const g1 = pctChangeRounded(series, 2000, 2024, COMPACT_OPTS);
-  const g2 = pctChangeRounded(series, 2024, 2050, COMPACT_OPTS);
-
-  const mid1 = (2000 + 2024) / 2;
-  const mid2 = (2024 + 2050) / 2;
-
-  // For positioning, you can keep the true mid value for y()
-  // If you want the position to also reflect rounding, swap to:
-  // y(compactRoundValue(getValueAt(series, mid1), COMPACT_OPTS))
-  overlayG.append('text')
-    .attr('class','growth')
-    .attr('x', x(mid1))
-    .attr('y', y(getValueAt(series, mid1)) - GROWTH_OFF)
-    .attr('text-anchor','middle')
-    .style('font-size', `${GROWTH_FZ}px`)
-    .text(g1 == null ? '–' : formatPercent(g1));
-
-  overlayG.append('text')
-    .attr('class','growth')
-    .attr('x', x(mid2))
-    .attr('y', y(getValueAt(series, mid2)) - GROWTH_OFF)
-    .attr('text-anchor','middle')
-    .style('font-size', `${GROWTH_FZ}px`)
-    .text(g2 == null ? '–' : formatPercent(g2));
-}
   drawGrowth(fwSeries);
   drawGrowth(swSeries);
 
@@ -321,8 +247,8 @@ svg.on('mousemove', function(event){
       .style('display', 'block')
       .html(
         `<strong>Year ${nearest}</strong><br>
-         Statewide: ${formatCompact(sw, COMPACT_OPTS)}<br>
-         Fort Worth: ${formatCompact(fw, COMPACT_OPTS)}`
+         Statewide: ${formatMillions(sw)}<br>
+         Fort Worth: ${formatMillions(fw)}`
       );
 
     // 2) Measure tooltip and compute a robust placement
