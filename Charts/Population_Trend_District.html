@@ -191,10 +191,10 @@ function render(raw){
   const legend = overlayG.append('g').attr('class','legend').attr('transform',`translate(${margin.left + 10*s}, ${margin.top - 50*s})`);
   legend.append('line').attr('x1',0).attr('x2',LEGEND_X2).attr('y1',0).attr('y2',0).attr('stroke',GREEN).attr('stroke-width',FW_WIDTH);
   legend.append('text').attr('x',LEGEND_TEXT_X).attr('y',0 + 0.285*LEGEND_FZ)
-        .style('font-size', `${LEGEND_FZ}px`).text('Fort Worth District Population');
+        .style('font-size', `${LEGEND_FZ}px`).text('Fort Worth District');
   legend.append('line').attr('x1',0).attr('x2',LEGEND_X2).attr('y1',LEGEND_Y_GAP).attr('y2',LEGEND_Y_GAP).attr('stroke',GREEN).attr('stroke-width',SW_WIDTH);
   legend.append('text').attr('x',LEGEND_TEXT_X).attr('y',LEGEND_Y_GAP + 0.285*LEGEND_FZ)
-        .style('font-size', `${LEGEND_FZ}px`).text('Statewide Population');
+        .style('font-size', `${LEGEND_FZ}px`).text('Statewide');
 
   function drawLabels(series, isFW){
     labelYears.forEach(yr => {
