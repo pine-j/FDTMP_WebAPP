@@ -2,7 +2,7 @@
 <html lang='en'>
 <head>
 <meta charset='utf-8'>
-<title>Employment FTW District</title>
+<title>Median Household Income FTW District</title>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
 <link href='https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&display=swap' rel='stylesheet'>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js'></script>
@@ -29,9 +29,9 @@
 <script>
 const url = 'https://pine-j.github.io/FDTMP_WebAPP/ChartData/FDTMP_HHIncome_District.csv';
 const GREEN = '#196533';
-const markerYears = [2000,2010,2020,2024,2030,2040,2050];
-const labelYears = [2000,2024,2050];
-const projectionStart = 2024;
+const markerYears = [2000,2010,2020,2023,2030,2040,2050];
+const labelYears = [2000,2023,2050];
+const projectionStart = 2023;
 const svg = d3.select('#chart');
 const tooltip = d3.select('#tooltip');
 
@@ -130,7 +130,7 @@ function render(raw){
   const y = d3.scaleLinear().domain(d3.extent([...fwSeries.map(d => d.value), ...swSeries.map(d => d.value)])).nice().range([height - margin.bottom, margin.top]);
 
   // X axis with scaled font-size and a minimum
-  const xAxis = d3.axisBottom(x).tickValues(markerYears.filter(y => y !== 2024)).tickFormat(d3.format('d'));
+  const xAxis = d3.axisBottom(x).tickValues(markerYears.filter(y => y !== 2023)).tickFormat(d3.format('d'));
   const gx = svg.append('g').attr('class','x-axis').attr('transform',`translate(0,${height - margin.bottom})`).call(xAxis);
   gx.selectAll('text').style('font-size', `${AXIS_FZ}px`);
 
@@ -139,14 +139,14 @@ function render(raw){
   const seriesG = svg.append('g').attr('class','series'); // lines on top of guides
   const overlayG = svg.append('g').attr('class','overlay'); // markers/labels/legend on top of series
 
-  // Reference line at 2024 from max(FW,SW) down to axis (in guides layer)
-  const valFW2024 = getValueAt(fwSeries, 2024);
-  const valSW2024 = getValueAt(swSeries, 2024);
-  const maxVal2024 = Math.max(valFW2024, valSW2024);
+  // Reference line at 2023 from max(FW,SW) down to axis (in guides layer)
+  const valFW2023 = getValueAt(fwSeries, 2023);
+  const valSW2023 = getValueAt(swSeries, 2023);
+  const maxVal2023 = Math.max(valFW2023, valSW2023);
   guides.append('line')
     .attr('class','ref-line')
-    .attr('x1', x(2024)).attr('x2', x(2024))
-    .attr('y1', y(maxVal2024)).attr('y2', height - margin.bottom)
+    .attr('x1', x(2023)).attr('x2', x(2023))
+    .attr('y1', y(maxVal2023)).attr('y2', height - margin.bottom)
     .attr('stroke-width', REF_WIDTH)
     .attr('stroke-dasharray', DASH);
 
@@ -263,11 +263,11 @@ function pctChangeRounded(series, y0, y1, opts = COMPACT_OPTS) {
 }
 
 function drawGrowth(series){
-  const g1 = pctChangeRounded(series, 2000, 2024, COMPACT_OPTS);
-  const g2 = pctChangeRounded(series, 2024, 2050, COMPACT_OPTS);
+  const g1 = pctChangeRounded(series, 2000, 2023, COMPACT_OPTS);
+  const g2 = pctChangeRounded(series, 2023, 2050, COMPACT_OPTS);
 
-  const mid1 = (2000 + 2024) / 2;
-  const mid2 = (2024 + 2050) / 2;
+  const mid1 = (2000 + 2023) / 2;
+  const mid2 = (2023 + 2050) / 2;
 
   // For positioning, you can keep the true mid value for y()
   // If you want the position to also reflect rounding, swap to:
