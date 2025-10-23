@@ -52,26 +52,29 @@
       useGrouping: false
     };
 
-    function formatCompact(n, opts = COMPACT_OPTS) {
+    function formatCompact(n, {
+      rawMaxDecimals = 1,
+      kDecimals = 1,
+      mDecimals = 1,
+      bDecimals = 1,
+      trimZeros = true,
+      useGrouping = false,
+    } = {}) {
       if (n == null || !isFinite(n)) return '';
 
       const abs = Math.abs(n);
       const sign = n < 0 ? -1 : 1;
-      const trim = s => opts.trimZeros ? s.replace(/\.0+$|(\.\d*[1-9])0+$/, '$1') : s;
+      const trim = s => trimZeros ? s.replace(/\.0+$|(\.\d*[1-9])0+$/, '$1') : s;
       const toFixed = (val, decimals) => trim(val.toFixed(decimals));
+      const group = new Intl.NumberFormat(undefined, { useGrouping }).format;
 
-      let formatted;
       if (abs < 1_000) {
-        formatted = Number.isInteger(n) ? String(n) : trim(n.toFixed(Math.min(opts.rawMaxDecimals, 6)));
-      } else if (abs < 1_000_000) {
-        formatted = `$${toFixed(abs / 1_000, opts.kDecimals)}K`;
-      } else if (abs < 1_000_000_000) {
-        formatted = `$${toFixed(abs / 1_000_000, opts.mDecimals)}M`;
-      } else {
-        formatted = `$${toFixed(abs / 1_000_000_000, opts.bDecimals)}B`;
+        if (Number.isInteger(n)) return useGrouping ? group(n) : String(n);
+        return trim(n.toFixed(Math.min(rawMaxDecimals, 6)));
       }
-
-      return sign < 0 ? `(${formatted})` : formatted;
+      if (abs < 1_000_000) return `$${toFixed(sign * abs / 1_000, kDecimals)}K`;
+      if (abs < 1_000_000_000) return `$${toFixed(sign * abs / 1_000_000, mDecimals)}M`;
+      return `$${toFixed(sign * abs / 1_000_000_000, bDecimals)}B`;
     }
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -81,14 +84,10 @@
     const csvUrl = 'https://pine-j.github.io/FDTMP_WebAPP/ChartData/FDTMP_GDPbyIndustry_County.csv';
 
     d3.csv(csvUrl).then(data => {
-      const normalize = str => str ? str.trim().toLowerCase() : '';
-
       const filteredData = data.filter(d => {
-        return (!countyFilter || normalize(d.County) === normalize(countyFilter)) &&
-               (!freightFilter || normalize(d.Freight_Intensive) === normalize(freightFilter));
+        return (!countyFilter || d.County === countyFilter) &&
+               (!freightFilter || d.Freight_Intensive === freightFilter);
       });
-
-      filteredData.sort((a, b) => parseFloat(b["2050 GDP"]) - parseFloat(a["2050 GDP"]));
 
       const tbody = d3.select('#data-table tbody');
 
@@ -96,18 +95,14 @@
         const gdp2023 = +d["2023 GDP"];
         const gdp2050 = +d["2050 GDP"];
         const delta = gdp2050 - gdp2023;
-
-        let percentChange = '';
-        if (isFinite(gdp2023) && gdp2023 !== 0) {
-          percentChange = Math.round((delta / gdp2023) * 100) + '%';
-        }
+        const percentChange = gdp2023 !== 0 ? Math.round((delta / gdp2023) * 100) : 0;
 
         const row = tbody.append('tr');
         row.append('td').text(d.Industry);
-        row.append('td').text(formatCompact(gdp2023));
-        row.append('td').text(formatCompact(gdp2050));
-        row.append('td').text(formatCompact(delta));
-        row.append('td').text(percentChange);
+        row.append('td').text(formatCompact(gdp2023, COMPACT_OPTS));
+        row.append('td').text(formatCompact(gdp2050, COMPACT_OPTS));
+        row.append('td').text(formatCompact(delta, COMPACT_OPTS));
+        row.append('td').text(percentChange + '%');
       });
     });
   </script>
