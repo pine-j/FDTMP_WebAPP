@@ -19,3 +19,15 @@ https://pine-j.github.io/FDTMP_WebAPP/Charts/GDP_Table_County.html
 Source:  2001 to 2023 Data: U.S. Bureau of Economic Analysis (GDP in current dollars) (2023 $); 2030 to 2050 Data: TREDIS Economic Model for Texas (2023 $)  
 
 GDP - Top Industries Per County:
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=District
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=Parker
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=Hood
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=Tarrant
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=Johnson
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=Wise
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=Somervell
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=Jack
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=Erath
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=Palo%20Pinto
+
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDPbyIndustry_Table_County.html?County=District&Freight_Intensive=Yes
