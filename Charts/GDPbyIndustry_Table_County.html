@@ -1,0 +1,110 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      margin: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead {
+      background-color: #0056a9;
+      color: white;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+    }
+    tr:nth-child(even) {
+      background-color: #F2F2F2;
+    }
+  </style>
+</head>
+<body>
+  <table id="data-table">
+    <thead>
+      <tr>
+        <th>Industry</th>
+        <th>2023 GDP</th>
+        <th>2050 GDP</th>
+        <th>Δ Change (2023 to 2050)</th>
+        <th>% Change (2023 to 2050)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    const COMPACT_OPTS = {
+      rawMaxDecimals: 1,
+      kDecimals: 1,
+      mDecimals: 1,
+      bDecimals: 1,
+      trimZeros: true,
+      useGrouping: false
+    };
+
+    function formatCompact(n, {
+      rawMaxDecimals = 1,
+      kDecimals = 1,
+      mDecimals = 1,
+      bDecimals = 1,
+      trimZeros = true,
+      useGrouping = false,
+    } = {}) {
+      if (n == null || !isFinite(n)) return '';
+
+      const abs = Math.abs(n);
+      const sign = n < 0 ? -1 : 1;
+      const trim = s => trimZeros ? s.replace(/\.0+$|(\.\d*[1-9])0+$/, '$1') : s;
+      const toFixed = (val, decimals) => trim(val.toFixed(decimals));
+      const group = new Intl.NumberFormat(undefined, { useGrouping }).format;
+
+      if (abs < 1_000) {
+        if (Number.isInteger(n)) return useGrouping ? group(n) : String(n);
+        return trim(n.toFixed(Math.min(rawMaxDecimals, 6)));
+      }
+      if (abs < 1_000_000) return `$${toFixed(sign * abs / 1_000, kDecimals)}K`;
+      if (abs < 1_000_000_000) return `$${toFixed(sign * abs / 1_000_000, mDecimals)}M`;
+      return `$${toFixed(sign * abs / 1_000_000_000, bDecimals)}B`;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const countyFilter = urlParams.get('County');
+    const freightFilter = urlParams.get('Freight_Intensive');
+
+    const csvUrl = 'https://pine-j.github.io/FDTMP_WebAPP/ChartData/FDTMP_GDPbyIndustry_County.csv';
+
+    d3.csv(csvUrl).then(data => {
+      const filteredData = data.filter(d => {
+        return (!countyFilter || d.County === countyFilter) &&
+               (!freightFilter || d.Freight_Intensive === freightFilter);
+      });
+
+      const tbody = d3.select('#data-table tbody');
+
+      filteredData.forEach(d => {
+        const gdp2023 = +d["2023 GDP"];
+        const gdp2050 = +d["2050 GDP"];
+        const delta = gdp2050 - gdp2023;
+        const percentChange = gdp2023 !== 0 ? Math.round((delta / gdp2023) * 100) : 0;
+
+        const row = tbody.append('tr');
+        row.append('td').text(d.Industry);
+        row.append('td').text(formatCompact(gdp2023, COMPACT_OPTS));
+        row.append('td').text(formatCompact(gdp2050, COMPACT_OPTS));
+        row.append('td').text(formatCompact(delta, COMPACT_OPTS));
+        row.append('td').text(percentChange + '%');
+      });
+    });
+  </script>
+</body>
+</html>
