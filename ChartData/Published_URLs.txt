@@ -1,0 +1,21 @@
+Population:
+https://pine-j.github.io/FDTMP_WebAPP/Charts/Population_Trend_District.html
+https://pine-j.github.io/FDTMP_WebAPP/Charts/Population_Table_County.html
+Source: 2000 to 2024: U.S. Census; 2030 to 2050: Texas Demographics Center
+
+Employment:
+https://pine-j.github.io/FDTMP_WebAPP/Charts/Employment_Trend_District.html
+https://pine-j.github.io/FDTMP_WebAPP/Charts/Employment_Table_County.html
+Source: U.S. Bureau of Labor Statistics (2000 to 2024);  TxDOT SAM v5 - employment estimates (2030 – 2050); NCTCOG Mobility 2050 Demographics for FTW and DAL Urban counties:  Wise, Denton, Collin, Rockwall, Dallas, Tarrant, Parker, Johnson, Ellis, Kaufman, Hood & Hunt (2030 – 2050)
+
+Household Income
+https://pine-j.github.io/FDTMP_WebAPP/Charts/HHIncome_Trend_District.html
+https://pine-j.github.io/FDTMP_WebAPP/Charts/HHIncome_Table_County.html
+Source: 2000 to 2023 – U.S. Census Bureau (2000- Decennial Census: Table HCT012, 2010 to 2023: ACS 5-Year Estimates: Table S1903) (2023$) ;2030 to 2050 – SAMv5 (2023$)
+
+GDP:
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDP_Trend_District.html
+https://pine-j.github.io/FDTMP_WebAPP/Charts/GDP_Table_County.html
+Source:  2001 to 2023 Data: U.S. Bureau of Economic Analysis (GDP in current dollars) (2023 $); 2030 to 2050 Data: TREDIS Economic Model for Texas (2023 $)  
+
+GDP - Top Industries Per County:
