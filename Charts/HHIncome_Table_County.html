@@ -1,0 +1,107 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Median Household Income Table</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      margin: 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead {
+      background-color: #0056a9;
+      color: white;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px;
+    }
+    tr:nth-child(even) {
+      background-color: #F2F2F2;
+    }
+  </style>
+</head>
+<body>
+  <table id="data-table"></table>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    const dataUrl = "https://pine-j.github.io/FDTMP_WebAPP/ChartData/FDTMP_HHIncome_County.csv";
+
+    const COMPACT_OPTS = {
+      rawMaxDecimals: 1,
+      kDecimals: 1,
+      mDecimals: 1,
+      bDecimals: 1,
+      trimZeros: true,
+      useGrouping: false
+    };
+
+    function formatCompact(n, {
+      rawMaxDecimals = 1,
+      kDecimals = 1,
+      mDecimals = 1,
+      bDecimals = 1,
+      trimZeros = true,
+      useGrouping = false,
+    } = {}) {
+      if (n == null || !isFinite(n)) return '';
+
+      const abs = Math.abs(n);
+      const sign = n < 0 ? -1 : 1;
+      const trim = s => trimZeros ? s.replace(/\.0+$|(\.\d*[1-9])0+$/, '$1') : s;
+      const toFixed = (val, decimals) => trim(val.toFixed(decimals));
+      const group = new Intl.NumberFormat(undefined, { useGrouping }).format;
+
+      if (abs < 1_000) {
+        if (Number.isInteger(n)) return useGrouping ? group(n) : String(n);
+        return trim(n.toFixed(Math.min(rawMaxDecimals, 6)));
+      }
+      if (abs < 1_000_000) return `${toFixed(sign * abs / 1_000, kDecimals)}K`;
+      if (abs < 1_000_000_000) return `${toFixed(sign * abs / 1_000_000, mDecimals)}M`;
+      return `$${toFixed(sign * abs / 1_000_000_000, bDecimals)}B`;
+    }
+
+    d3.csv(dataUrl).then(data => {
+      const table = d3.select("#data-table");
+      const headers = data.columns;
+
+      // Create header
+      table.append("thead").append("tr")
+        .selectAll("th")
+        .data(headers)
+        .enter()
+        .append("th")
+        .text(d => d);
+
+      // Create rows
+      const rows = table.append("tbody")
+        .selectAll("tr")
+        .data(data)
+        .enter()
+        .append("tr");
+
+      rows.selectAll("td")
+        .data(row => headers.map(h => {
+          let val = row[h];
+          if (!isNaN(val) && h !== headers[headers.length - 1]) {
+            return formatCompact(+val, COMPACT_OPTS);
+          } else if (!isNaN(val) && h === headers[headers.length - 1]) {
+            return Math.round(+val) + '%';
+          }
+          return val;
+        }))
+        .enter()
+        .append("td")
+        .text(d => d);
+    });
+  </script>
+</body>
+</html>
