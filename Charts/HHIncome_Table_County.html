@@ -64,8 +64,8 @@
         if (Number.isInteger(n)) return useGrouping ? group(n) : String(n);
         return trim(n.toFixed(Math.min(rawMaxDecimals, 6)));
       }
-      if (abs < 1_000_000) return `${toFixed(sign * abs / 1_000, kDecimals)}K`;
-      if (abs < 1_000_000_000) return `${toFixed(sign * abs / 1_000_000, mDecimals)}M`;
+      if (abs < 1_000_000) return `$${toFixed(sign * abs / 1_000, kDecimals)}K`;
+      if (abs < 1_000_000_000) return `$${toFixed(sign * abs / 1_000_000, mDecimals)}M`;
       return `$${toFixed(sign * abs / 1_000_000_000, bDecimals)}B`;
     }
 
