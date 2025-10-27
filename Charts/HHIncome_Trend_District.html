@@ -7,8 +7,8 @@
 <link href='https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&display=swap' rel='stylesheet'>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js'></script>
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; font-family: 'IBM Plex Sans', sans-serif; background: transparent; }
-  .chart-wrap { width: 100%; height: 100vh; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: 'IBM Plex Sans', sans-serif; background:#fff; }
+  .chart-wrap { width: 90%; height: 100vh; margin: 0px auto}
   svg { width: 100%; height: 100%; background: transparent; display: block; }
   .y-axis, .y-axis path, .y-axis .tick line, .y-axis .domain { display: none; }
   .marker { fill: #fff; stroke: #196533; }
@@ -108,7 +108,7 @@ function render(raw){
   const TIP_FZ    = sz(15, 17);  // tooltip font (min 11px)
 
   // Other visuals
-  const FW_WIDTH = 4*s, SW_WIDTH = 2*s, MARKER_R = 5*s;
+  const FW_WIDTH = 8*s, SW_WIDTH = 2*s, MARKER_R = 5*s;
   const PILL_PAD_X = 8*s, PILL_PAD_Y = 5*s, PILL_RX = 4*s;
   const LEGEND_X2 = 36*s, LEGEND_TEXT_X = 44*s;
   const REF_WIDTH = 1.5*s;
