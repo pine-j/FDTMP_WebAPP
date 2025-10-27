@@ -90,22 +90,22 @@ function render(raw){
   const width = container.clientWidth;
   const height = container.clientHeight || 500;
 
-  // Base design size, elements scale relative to this
-  const DESIGN_W = 900, DESIGN_H = 520;
+   // Base design size, elements scale relative to this
+  const DESIGN_W = 300, DESIGN_H = 320;
   const s = Math.min(width / DESIGN_W, height / DESIGN_H);
 
   // Helper: scale size with a floor (minimum in px)
   const sz = (base, minPx) => Math.max(minPx, base * s);
 
   // ---- Visual sizing ----
-  const margin = { top: 90*s, right: 30*s, bottom: 50*s, left: 40*s };
+  const margin = { top: 80*s, right: 50*s, bottom: 50*s, left: 50*s };
 
   // Fonts with minimums
-  const AXIS_FZ   = sz(15, 17);  // axis tick labels (min 11px)
-  const LEGEND_FZ = sz(16, 18);  // legend text (min 12px)
-  const LABEL_FZ  = sz(16, 18);  // value labels (min 12px)
-  const GROWTH_FZ = sz(16, 18);  // growth % labels (min 12px)
-  const TIP_FZ    = sz(15, 17);  // tooltip font (min 11px)
+  const AXIS_FZ   = sz(15, 15);  // axis tick labels (min 11px)
+  const LEGEND_FZ = sz(14, 14);  // legend text (min 12px)
+  const LABEL_FZ  = sz(16, 15);  // value labels (min 12px)
+  const GROWTH_FZ = sz(16, 15);  // growth % labels (min 12px)
+  const TIP_FZ    = sz(15, 15);  // tooltip font (min 11px)
 
   // Other visuals
   const FW_WIDTH = 8*s, SW_WIDTH = 2*s, MARKER_R = 5*s;
