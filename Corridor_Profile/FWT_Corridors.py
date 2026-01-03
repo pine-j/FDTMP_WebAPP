@@ -3,6 +3,39 @@ import pandas as pd  # type: ignore
 import os
 import sys
 import random
+import shutil
+import tempfile
+import time
+
+def read_excel_safe(path, sheet_name, **kwargs):
+    """
+    Attempts to read an Excel file. If permission is denied (e.g., file open),
+    tries to copy it to a temporary location and read from there.
+    """
+    try:
+        return pd.read_excel(path, sheet_name=sheet_name, **kwargs)
+    except PermissionError:
+        print(f"Permission denied for {path}. File might be open. Attempting to read from temporary copy...")
+        
+        # Create a temp file with same extension
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, f"temp_copy_{int(time.time())}_{os.path.basename(path)}")
+        
+        try:
+            shutil.copy2(path, temp_path)
+            print(f"Copied to temporary file: {temp_path}")
+            df = pd.read_excel(temp_path, sheet_name=sheet_name, **kwargs)
+            
+            # Try to clean up (might fail if still held, but usually ok)
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+                
+            return df
+        except Exception as e:
+            print(f"Failed to read from temporary copy: {e}")
+            raise e
 
 def main():
     # Set working directory to the script's location for relative path usage
@@ -44,6 +77,12 @@ def main():
             return
         target_hwys = df_hwys['HWY_Label'].unique()
         print(f"Found {len(target_hwys)} target highways.")
+        
+        # Extract corridor names for project matching
+        target_corridors = df_hwys['Corridor'].unique()
+        # Create mapping from Corridor to HWY_Label for project aggregation
+        corridor_to_hwy = dict(zip(df_hwys['Corridor'], df_hwys['HWY_Label']))
+        print(f"Found {len(target_corridors)} target corridors for project matching.")
     except Exception as e:
         print(f"Error reading Excel: {e}")
         return
@@ -116,8 +155,18 @@ def main():
         # Round all miles columns to one decimal place
         df_pivot = df_pivot.round(1)
         
-        # Rename columns to indicate they are miles, e.g., "2U" -> "2U_miles"
-        df_pivot.columns = [f"{col}_miles" for col in df_pivot.columns]
+        # Rename columns to indicate they are miles, e.g., "2U" -> "two_U_miles"
+        # Sanitize column names: replace + with _plus for Arcade compatibility
+        # Also rename starting numbers 2 and 4 to text to avoid Arcade issues
+        new_cols = []
+        for col in df_pivot.columns:
+            sanitized = col.replace('+', '_plus')
+            if sanitized.startswith('2'):
+                sanitized = "two_" + sanitized[1:]
+            elif sanitized.startswith('4'):
+                sanitized = "four_" + sanitized[1:]
+            new_cols.append(f"{sanitized}_miles")
+        df_pivot.columns = new_cols
         df_pivot.reset_index(inplace=True)
         print("Cross-section pivot created.")
     else:
@@ -132,6 +181,8 @@ def main():
         gdf_filtered['AADT_weighted'] = gdf_filtered['AADT'] * gdf_filtered['segment_length_miles']
     if 'Truck_AADT' in gdf_filtered.columns:
         gdf_filtered['Truck_AADT_weighted'] = gdf_filtered['Truck_AADT'] * gdf_filtered['segment_length_miles']
+    if 'Tons' in gdf_filtered.columns:
+        gdf_filtered['Tons_weighted'] = gdf_filtered['Tons'] * gdf_filtered['segment_length_miles']
     
     agg_dict = {}
     # Columns to sum
@@ -144,6 +195,8 @@ def main():
         agg_dict['AADT_weighted'] = 'sum'
     if 'Truck_AADT_weighted' in gdf_filtered.columns:
         agg_dict['Truck_AADT_weighted'] = 'sum'
+    if 'Tons_weighted' in gdf_filtered.columns:
+        agg_dict['Tons_weighted'] = 'sum'
     
     # Sum segment lengths for weighted mean denominator
     if 'segment_length_miles' in gdf_filtered.columns:
@@ -170,6 +223,25 @@ def main():
         # Drop temporary weighted column
         gdf_dissolved.drop(columns=['Truck_AADT_weighted'], inplace=True)
     
+    if 'Tons_weighted' in gdf_dissolved.columns and 'segment_length_miles' in gdf_dissolved.columns:
+        # Avoid division by zero
+        mask = gdf_dissolved['segment_length_miles'] > 0
+        gdf_dissolved.loc[mask, 'Tons'] = gdf_dissolved.loc[mask, 'Tons_weighted'] / gdf_dissolved.loc[mask, 'segment_length_miles']
+        gdf_dissolved.loc[~mask, 'Tons'] = None
+        # Round to 1 decimal place
+        gdf_dissolved['Tons'] = gdf_dissolved['Tons'].round(1)
+        # Drop temporary weighted column
+        gdf_dissolved.drop(columns=['Tons_weighted'], inplace=True)
+    
+    # Calculate Truck_percentage after weighted averages
+    if 'Truck_AADT' in gdf_dissolved.columns and 'AADT' in gdf_dissolved.columns:
+        # Avoid division by zero and handle None values
+        mask = (gdf_dissolved['AADT'].notna()) & (gdf_dissolved['AADT'] > 0)
+        gdf_dissolved.loc[mask, 'Truck_percentage'] = (gdf_dissolved.loc[mask, 'Truck_AADT'] / gdf_dissolved.loc[mask, 'AADT']) * 100
+        gdf_dissolved.loc[~mask, 'Truck_percentage'] = None
+        # Round to 1 decimal place
+        gdf_dissolved['Truck_percentage'] = gdf_dissolved['Truck_percentage'].round(1)
+    
     # Drop segment_length_miles column as it's temporary (Total_Miles will be merged later)
     if 'segment_length_miles' in gdf_dissolved.columns:
         gdf_dissolved.drop(columns=['segment_length_miles'], inplace=True)
@@ -190,32 +262,166 @@ def main():
     if 'HWY_Label' in gdf_final.columns:
         gdf_final.drop(columns=['HWY_Label'], inplace=True)
     
+    # Load project data from master Excel file
+    print("Loading project data from master Excel file...")
+    project_excel_path = r"J:\FTW District Transportation Master Plan - Documents\70_Shared_FTW_Deliverables\06_District_Project_List\FTW District Project Tracker - Master.xlsx"
+    
+    if not os.path.exists(project_excel_path):
+        print(f"Warning: Project Excel file not found at {project_excel_path}")
+        print("Setting all project columns to 0.")
+        # Initialize all project columns with 0
+        gdf_final['Projects_Construction'] = 0
+        gdf_final['Project_Cost_Construction'] = 0
+        gdf_final['Projects_Funded'] = 0
+        gdf_final['Project_Cost_Funded'] = 0
+        gdf_final['Projects_PartialFunded'] = 0
+        gdf_final['Project_Cost_PartialFunded'] = 0
+        gdf_final['Project_FundingGap_PartialFunded'] = 0
+        gdf_final['Projects_Unfunded'] = 0
+        gdf_final['Project_Cost_Unfunded'] = 0
+    else:
+        # Read Construction Projects Sheet
+        print("Reading Under_Construction_June2025 sheet...")
+        try:
+            df_construction = read_excel_safe(project_excel_path, sheet_name='Under_Construction_June2025')
+            
+            # Check required columns exist
+            if 'Highway' in df_construction.columns and 'CSJ' in df_construction.columns and 'Construction Cost/Estimate' in df_construction.columns:
+                # Filter projects that match target corridors
+                df_construction_filtered = df_construction[df_construction['Highway'].isin(target_corridors)].copy()
+                
+                # Map corridor names to HWY labels
+                df_construction_filtered['HWY'] = df_construction_filtered['Highway'].map(corridor_to_hwy)
+                
+                # Group by HWY, count unique CSJ, sum Construction Cost/Estimate
+                construction_summary = df_construction_filtered.groupby('HWY').agg({
+                    'CSJ': 'nunique',
+                    'Construction Cost/Estimate': lambda x: x.sum()
+                }).reset_index()
+                
+                construction_summary.columns = ['HWY', 'Projects_Construction', 'Project_Cost_Construction']
+                
+                # Round cost to 1 decimal place
+                construction_summary['Project_Cost_Construction'] = construction_summary['Project_Cost_Construction'].round(1)
+                
+                print(f"Found {len(construction_summary)} highways with construction projects.")
+            else:
+                print("Warning: Required columns not found in Under_Construction_June2025 sheet.")
+                construction_summary = pd.DataFrame(columns=['HWY', 'Projects_Construction', 'Project_Cost_Construction'])
+        except Exception as e:
+            print(f"Error reading Under_Construction_June2025 sheet: {e}")
+            construction_summary = pd.DataFrame(columns=['HWY', 'Projects_Construction', 'Project_Cost_Construction'])
+        
+        # Read UTP Projects Sheet
+        print("Reading UTP2026_TxC_Projects_Review sheet...")
+        try:
+            df_utp = read_excel_safe(project_excel_path, sheet_name='UTP2026_TxC_Projects_Review', header=1)
+            
+            # Rename columns to match expected names
+            if 'TxDOT CONNECT CSJ (highlighted projects are in UTP)' in df_utp.columns:
+                df_utp.rename(columns={'TxDOT CONNECT CSJ (highlighted projects are in UTP)': 'CSJ'}, inplace=True)
+            
+            # Check required columns exist
+            if 'Highway' in df_utp.columns and 'CSJ' in df_utp.columns and 'Funding Status (UTP 2026)' in df_utp.columns and 'Construction Cost' in df_utp.columns and 'Funding Gap' in df_utp.columns:
+                # Filter projects that match target corridors
+                df_utp_filtered = df_utp[df_utp['Highway'].isin(target_corridors)].copy()
+                
+                # Map corridor names to HWY labels
+                df_utp_filtered['HWY'] = df_utp_filtered['Highway'].map(corridor_to_hwy)
+                
+                # Normalize funding status for case-insensitive matching
+                df_utp_filtered['Funding_Status_Normalized'] = df_utp_filtered['Funding Status (UTP 2026)'].str.strip().str.lower()
+                
+                # Process Funded projects
+                df_funded = df_utp_filtered[df_utp_filtered['Funding_Status_Normalized'] == 'funded'].copy()
+                funded_summary = df_funded.groupby('HWY').agg({
+                    'CSJ': 'nunique',
+                    'Construction Cost': lambda x: x.sum()
+                }).reset_index()
+                funded_summary.columns = ['HWY', 'Projects_Funded', 'Project_Cost_Funded']
+                funded_summary['Project_Cost_Funded'] = funded_summary['Project_Cost_Funded'].round(1)
+                
+                # Process Partially Funded projects
+                df_partial = df_utp_filtered[df_utp_filtered['Funding_Status_Normalized'].str.contains('partial', na=False)].copy()
+                partial_summary = df_partial.groupby('HWY').agg({
+                    'CSJ': 'nunique',
+                    'Construction Cost': lambda x: x.sum(),
+                    'Funding Gap': lambda x: x.sum()
+                }).reset_index()
+                partial_summary.columns = ['HWY', 'Projects_PartialFunded', 'Project_Cost_PartialFunded', 'Project_FundingGap_PartialFunded']
+                partial_summary['Project_Cost_PartialFunded'] = partial_summary['Project_Cost_PartialFunded'].round(1)
+                partial_summary['Project_FundingGap_PartialFunded'] = partial_summary['Project_FundingGap_PartialFunded'].round(1)
+                
+                # Process Unfunded projects
+                df_unfunded = df_utp_filtered[df_utp_filtered['Funding_Status_Normalized'] == 'unfunded'].copy()
+                unfunded_summary = df_unfunded.groupby('HWY').agg({
+                    'CSJ': 'nunique',
+                    'Construction Cost': lambda x: x.sum()
+                }).reset_index()
+                unfunded_summary.columns = ['HWY', 'Projects_Unfunded', 'Project_Cost_Unfunded']
+                unfunded_summary['Project_Cost_Unfunded'] = unfunded_summary['Project_Cost_Unfunded'].round(1)
+                
+                print(f"Found {len(funded_summary)} highways with funded projects.")
+                print(f"Found {len(partial_summary)} highways with partially funded projects.")
+                print(f"Found {len(unfunded_summary)} highways with unfunded projects.")
+            else:
+                print("Warning: Required columns not found in UTP2026_TxC_Projects_Review sheet.")
+                print("Available columns:", df_utp.columns.tolist())
+                funded_summary = pd.DataFrame(columns=['HWY', 'Projects_Funded', 'Project_Cost_Funded'])
+                partial_summary = pd.DataFrame(columns=['HWY', 'Projects_PartialFunded', 'Project_Cost_PartialFunded', 'Project_FundingGap_PartialFunded'])
+                unfunded_summary = pd.DataFrame(columns=['HWY', 'Projects_Unfunded', 'Project_Cost_Unfunded'])
+                partial_summary = pd.DataFrame(columns=['HWY', 'Projects_PartialFunded', 'Project_Cost_PartialFunded', 'Project_FundingGap_PartialFunded'])
+                unfunded_summary = pd.DataFrame(columns=['HWY', 'Projects_Unfunded', 'Project_Cost_Unfunded'])
+        except Exception as e:
+            print(f"Error reading UTP2026_TxC_Projects_Review sheet: {e}")
+            funded_summary = pd.DataFrame(columns=['HWY', 'Projects_Funded', 'Project_Cost_Funded'])
+            partial_summary = pd.DataFrame(columns=['HWY', 'Projects_PartialFunded', 'Project_Cost_PartialFunded', 'Project_FundingGap_PartialFunded'])
+            unfunded_summary = pd.DataFrame(columns=['HWY', 'Projects_Unfunded', 'Project_Cost_Unfunded'])
+        
+        # Merge all project data into gdf_final
+        print("Merging project data into final GeoDataFrame...")
+        gdf_final = gdf_final.merge(construction_summary, on='HWY', how='left')
+        gdf_final = gdf_final.merge(funded_summary, on='HWY', how='left')
+        gdf_final = gdf_final.merge(partial_summary, on='HWY', how='left')
+        gdf_final = gdf_final.merge(unfunded_summary, on='HWY', how='left')
+        
+        # Fill NaN values with 0 for corridors with no projects
+        project_columns = [
+            'Projects_Construction', 'Project_Cost_Construction',
+            'Projects_Funded', 'Project_Cost_Funded',
+            'Projects_PartialFunded', 'Project_Cost_PartialFunded', 'Project_FundingGap_PartialFunded',
+            'Projects_Unfunded', 'Project_Cost_Unfunded'
+        ]
+        for col in project_columns:
+            if col in gdf_final.columns:
+                gdf_final[col] = gdf_final[col].fillna(0)
+    
     # Generate random project columns for each HWY
-    print("Generating random project columns...")
-    random.seed(42)  # Fixed seed for reproducibility
-    n_rows = len(gdf_final)
+    # print("Generating random project columns...")
+    # random.seed(42)  # Fixed seed for reproducibility
+    # n_rows = len(gdf_final)
     
-    # Construction projects
-    gdf_final['Projects_Construction'] = [random.randint(10, 50) for _ in range(n_rows)]
-    gdf_final['Project_Length_Construction'] = [random.randint(50, 150) for _ in range(n_rows)]
-    gdf_final['Project_Cost_Construction'] = [f"${random.randint(10, 500)}B" for _ in range(n_rows)]
+    # # Construction projects
+    # gdf_final['Projects_Construction'] = [random.randint(10, 50) for _ in range(n_rows)]
+    # gdf_final['Project_Length_Construction'] = [random.randint(50, 150) for _ in range(n_rows)]
+    # gdf_final['Project_Cost_Construction'] = [random.randint(10, 500) for _ in range(n_rows)]
     
-    # Funded projects
-    gdf_final['Projects_Funded'] = [random.randint(10, 100) for _ in range(n_rows)]
-    gdf_final['Project_Length_Funded'] = [random.randint(100, 250) for _ in range(n_rows)]
-    gdf_final['Project_Cost_Funded'] = [f"${random.randint(50, 1000)}B" for _ in range(n_rows)]
+    # # Funded projects
+    # gdf_final['Projects_Funded'] = [random.randint(10, 100) for _ in range(n_rows)]
+    # gdf_final['Project_Length_Funded'] = [random.randint(100, 250) for _ in range(n_rows)]
+    # gdf_final['Project_Cost_Funded'] = [random.randint(50, 1000) for _ in range(n_rows)]
     
-    # Partially funded projects
-    gdf_final['Projects_PartialFunded'] = [random.randint(100, 400) for _ in range(n_rows)]
-    gdf_final['Project_Length_PartialFunded'] = [random.randint(100, 500) for _ in range(n_rows)]
-    gdf_final['Project_Cost_PartialFunded'] = [f"${random.randint(50, 1000)}B" for _ in range(n_rows)]
-    gdf_final['Project_FundingGap_PartialFunded'] = [f"${random.randint(50, 1000)}B" for _ in range(n_rows)]
+    # # Partially funded projects
+    # gdf_final['Projects_PartialFunded'] = [random.randint(100, 400) for _ in range(n_rows)]
+    # gdf_final['Project_Length_PartialFunded'] = [random.randint(100, 500) for _ in range(n_rows)]
+    # gdf_final['Project_Cost_PartialFunded'] = [random.randint(50, 1000) for _ in range(n_rows)]
+    # gdf_final['Project_FundingGap_PartialFunded'] = [random.randint(50, 1000) for _ in range(n_rows)]
     
-    # Unfunded projects
-    gdf_final['Projects_Unfunded'] = [random.randint(100, 400) for _ in range(n_rows)]
-    gdf_final['Project_Length_Unfunded'] = [random.randint(100, 500) for _ in range(n_rows)]
-    gdf_final['Project_Cost_Unfunded'] = [f"${random.randint(50, 1000)}B" for _ in range(n_rows)]
-    gdf_final['Project_FundingGap_Unfunded'] = [f"${random.randint(50, 1000)}B" for _ in range(n_rows)]
+    # # Unfunded projects
+    # gdf_final['Projects_Unfunded'] = [random.randint(100, 400) for _ in range(n_rows)]
+    # gdf_final['Project_Length_Unfunded'] = [random.randint(100, 500) for _ in range(n_rows)]
+    # gdf_final['Project_Cost_Unfunded'] = [random.randint(50, 1000) for _ in range(n_rows)]
+    
     
     # Reorder columns: Excel columns first, then computed columns
     print("Reordering columns...")
@@ -237,6 +443,40 @@ def main():
     # Reorder the dataframe
     gdf_final = gdf_final[new_column_order]
 
+    # Ensure numeric columns export with Arcade-friendly dtypes.
+    # ArcGIS JS warns when fields are stored as 64-bit integers because values can exceed Number.MAX_SAFE_INTEGER.
+    print("Converting numeric columns to Arcade-safe data types...")
+    integer_like_columns = [
+        'Number_Of_Crashes',
+        'Number_Of_Fatal_Crashes',
+        'Projects_Construction',
+        'Projects_Funded',
+        'Projects_PartialFunded',
+        'Projects_Unfunded',
+        'Order'
+    ]
+    for col in integer_like_columns:
+        if col in gdf_final.columns:
+            gdf_final[col] = (
+                pd.to_numeric(gdf_final[col], errors='coerce')
+                .round()
+                .astype('float64')
+            )
+
+    float_columns = [
+        'Project_Cost_Construction',
+        'Project_Cost_Funded',
+        'Project_Cost_PartialFunded',
+        'Project_FundingGap_PartialFunded',
+        'Project_Cost_Unfunded'
+    ]
+    for col in float_columns:
+        if col in gdf_final.columns:
+            gdf_final[col] = (
+                pd.to_numeric(gdf_final[col], errors='coerce')
+                .astype('float64')
+            )
+
     # 6. Export Data
     print(f"Exporting to {output_path}...")
     try:
@@ -247,4 +487,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

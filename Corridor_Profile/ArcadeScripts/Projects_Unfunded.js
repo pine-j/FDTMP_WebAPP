@@ -19,15 +19,38 @@ if (HasKey($dataSources, fullLayerID)) {
     if (Count(selectedFeatures) > 0) {
       // CASE A: Something is selected
       var feature = First(selectedFeatures);
-      // Display the Total_Miles for the selected feature
-      // formatted with commas and 2 decimal places
-      displayText = Text(feature["Total_Miles"], "#,###.0") + " mi"; 
-    } else {
-      // CASE B: Nothing selected -> Sum total miles
-      var allFeatures = fullSource.layer;
-      var totalMiles = Sum(allFeatures, "Total_Miles");
       
-      displayText = Text(totalMiles, "#,###.0") + " mi";
+      // Try to get Projects_Unfunded directly first
+      var value = feature["Projects_Unfunded"];
+      
+      if (IsEmpty(value)) {
+        // Fallback: Find this feature in the full source
+        // We use Total_Miles as a "fingerprint" to find the matching feature
+        var targetMiles = feature["Total_Miles"];
+        
+        if (!IsEmpty(targetMiles)) {
+            var allFeats = fullSource.layer;
+            for (var f in allFeats) {
+                if (Abs(f["Total_Miles"] - targetMiles) < 0.01) {
+                    value = f["Projects_Unfunded"];
+                    break; // Found it
+                }
+            }
+        }
+      }
+
+      // Display the Projects_Unfunded for the selected feature
+      if (!IsEmpty(value)) {
+         displayText = Text(value, "#,###");
+      } else {
+         displayText = "0";
+      }
+    } else {
+      // CASE B: Nothing selected -> Sum total Projects_Unfunded
+      var allFeatures = fullSource.layer;
+      var totalValue = Sum(allFeatures, "Projects_Unfunded");
+      
+      displayText = Text(totalValue, "#,###");
     }
 } else {
     displayText = "Error: The widget does not have access to the data.";
