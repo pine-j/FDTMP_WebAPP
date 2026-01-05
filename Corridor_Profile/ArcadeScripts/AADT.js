@@ -61,7 +61,7 @@ if (HasKey($dataSources, fullLayerID)) {
         var aadt = feature["AADT"];
         var totalMiles = feature["Total_Miles"];
         
-        if (!IsEmpty(aadt) && !IsEmpty(totalMiles) && Number(aadt) > 0 && Number(totalMiles) > 0) {
+        if (!IsEmpty(totalMiles) && Number(totalMiles) > 0) {
           sumWeightedAADT += (Number(aadt) * Number(totalMiles));
           sumTotalMiles += Number(totalMiles);
         }

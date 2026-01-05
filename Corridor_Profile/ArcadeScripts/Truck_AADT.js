@@ -118,7 +118,7 @@ if (HasKey($dataSources, fullLayerID)) {
         var n_tons = Number(tons);
         var n_miles = Number(totalMiles);
 
-        if (n_t_aadt > 0 && n_miles > 0) {
+        if (n_miles > 0) {
           sumWeightedTruckAADT += (n_t_aadt * n_miles);
           sumWeightedTotalAADT += (n_aadt * n_miles);
           sumWeightedTons += (n_tons * n_miles);
