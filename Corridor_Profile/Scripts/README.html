@@ -102,9 +102,13 @@
 </nav>
 
 <main class="content">
-<h1 id="overview">FWT_Corridors.py – Data Processing &amp; Dashboard Calculations</h1>
+<h1 id="overview">Corridor Profile Dashboard (Fort Worth District Transportation Master Plan): Data Pipeline &amp; Logic Documentation</h1>
 
-<p>This script processes segment-level roadway data and aggregates it into corridor-level statistics for the Fort Worth District Transportation Master Plan dashboard. It reads segment data from a GeoPackage, performs spatial calculations and weighted aggregations, enriches the data with project information from the District Project Tracker, and exports a dashboard-ready GeoPackage file.</p>
+<div class="note">
+  <strong>Dashboard URL:</strong> <a href="https://experience.arcgis.com/experience/bc4e6a538fa840e1931dfdec2154a455/page/Corridor-Profiles" target="_blank">https://experience.arcgis.com/experience/bc4e6a538fa840e1931dfdec2154a455/page/Corridor-Profiles</a>
+</div>
+
+<p>This document provides technical details for the Corridor Profile Dashboard data pipeline and dashboard logic. The backend process involves a Python script (<code>FWT_Corridors.py</code>) that aggregates segment-level roadway data into corridor-level statistics, performs spatial calculations, and enriches the data with project information from the District Project Tracker. The resulting data is then consumed by the ArcGIS Experience Builder dashboard using custom Arcade scripts for dynamic display and on-the-fly calculations.</p>
 
 <h2 id="script-purpose">Script purpose</h2>
 
