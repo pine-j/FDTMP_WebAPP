@@ -108,6 +108,14 @@
         <li><a href="#arcade-scripts">ArcadeScripts reference</a></li>
       </ul>
     </li>
+    <li>
+      <a href="#adding-deleting-corridors">Adding or Deleting Corridors</a>
+      <ul>
+        <li><a href="#update-input-file">Update input file</a></li>
+        <li><a href="#download-shields">Download highway shields</a></li>
+        <li><a href="#generate-gpkg">Generate and publish GeoPackage</a></li>
+      </ul>
+    </li>
   </ul>
   <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
     <svg viewBox="0 0 24 24" id="moon-icon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -117,7 +125,7 @@
 </nav>
 
 <main class="content">
-<h1 id="overview">Corridor Profile Dashboard (Fort Worth District Transportation Master Plan): Data Pipeline &amp; Logic Documentation</h1>
+<h1 id="overview">Corridor Profile Dashboard (Fort Worth District Transportation Master Plan): Data Pipeline Documentation</h1>
 
 <div class="note">
   <strong>Dashboard URL:</strong> <a href="https://experience.arcgis.com/experience/bc4e6a538fa840e1931dfdec2154a455/page/Corridor-Profiles" target="_blank">https://experience.arcgis.com/experience/bc4e6a538fa840e1931dfdec2154a455/page/Corridor-Profiles</a>
@@ -521,7 +529,7 @@ Truck_percentage_all = (Truck_AADT_all / AADT_all) × 100
 
 <h3 id="arcade-scripts">ArcadeScripts reference</h3>
 
-<p>The dashboard calculations and display elements are implemented in ArcadeScripts located in <code>Corridor_Profile/ArcadeScripts/</code>:</p>
+<p>The dashboard calculations and display elements are implemented in ArcadeScripts located in <code>Corridor_Profile/Scripts/ArcadeScripts/</code>:</p>
 
 <p>The following scripts are listed in the order they appear on the dashboard:</p>
 
@@ -566,6 +574,163 @@ Truck_percentage_all = (Truck_AADT_all / AADT_all) × 100
   <tr><td><code>Projects_Unfunded.js</code></td><td>Number of Projects</td><td>SUM</td></tr>
   <tr><td><code>Project_Cost_Unfunded.js</code></td><td>Estimated Cost</td><td>SUM</td></tr>
 </table>
+
+<h2 id="adding-deleting-corridors">Adding or Deleting Corridors</h2>
+
+<p>This section describes the complete workflow for adding new corridors or removing existing corridors from the dashboard. The process involves updating the input spreadsheet, downloading highway shields, generating the GeoPackage, and publishing to ArcGIS Online.</p>
+
+<h3 id="update-input-file">1. Update input file</h3>
+
+<p>The first step is to modify the corridor definitions in the input Excel file.</p>
+
+<p><strong>File:</strong> <code>Corridor_Profile/Input_Files/FTW_Corridors.xlsx</code></p>
+
+<h4>Adding New Corridors</h4>
+<ul>
+  <li>Open <code>FTW_Corridors.xlsx</code> in Excel</li>
+  <li>Add a new row for each corridor you want to add</li>
+  <li>Fill in the required columns:
+    <ul>
+      <li><code>Order</code> – Display order number</li>
+      <li><code>HWY_Code</code> – Highway code identifier</li>
+      <li><code>HWY_Description</code> – Full highway description</li>
+      <li><code>Corridor</code> – Corridor name (used for project matching)</li>
+      <li><code>HWY_Label</code> – Highway label (used for segment matching and shield download)</li>
+      <li><code>HWY_Shield</code> – Leave this column <strong>empty</strong> for new corridors</li>
+    </ul>
+  </li>
+  <li>Save the file</li>
+</ul>
+
+<div class="note">
+  <strong>Important:</strong> 
+  <ul>
+    <li>The <code>HWY_Label</code> field must match the <code>HWY</code> field in the <code>raptor_results_FTW.gpkg</code> file for the corridor data to be processed correctly.</li>
+    <li>The <code>Corridor</code> field must match the <code>Highway</code> field in the FTW District Project Tracker Excel file for projects to be correctly matched and aggregated to each corridor.</li>
+    <li>The <code>HWY_Shield</code> column should be left empty for new corridors—it will be automatically populated by the shield download script.</li>
+  </ul>
+</div>
+
+<h4>Deleting Corridors</h4>
+<ul>
+  <li>Open <code>FTW_Corridors.xlsx</code> in Excel</li>
+  <li>Delete the entire row(s) for the corridor(s) you want to remove</li>
+  <li>Save the file</li>
+</ul>
+
+<h3 id="download-shields">2. Download highway shields</h3>
+
+<p>After updating the corridor list, run the shield download script to automatically download highway shield images and update the spreadsheet with their URLs.</p>
+
+<h4>Script: download_shields_wikipedia.py</h4>
+
+<p><strong>Location:</strong> <code>Corridor_Profile/Scripts/download_shields_wikipedia.py</code></p>
+
+<p><strong>Purpose:</strong> This script automates the process of downloading highway shield images from Wikimedia Commons and converting them to PNG format with standardized dimensions. It also updates the <code>HWY_Shield</code> column in the spreadsheet with GitHub URLs.</p>
+
+<h4>What the script does:</h4>
+<ol>
+  <li><strong>Reads the spreadsheet:</strong> Extracts all unique highway labels from the <code>HWY_Label</code> column</li>
+  <li><strong>Checks existing shields:</strong> Identifies which shields are already downloaded and validates their dimensions (must be exactly 500px height)</li>
+  <li><strong>Downloads missing shields:</strong> For each missing shield, the script:
+    <ul>
+      <li>Builds the appropriate Wikimedia Commons URL based on the highway type (IH, US, SH, FM)</li>
+      <li>Downloads the SVG file from Wikipedia</li>
+      <li>Converts the SVG to PNG format at exactly 500px height (width varies to maintain aspect ratio)</li>
+      <li>Tries multiple conversion methods: CairoSVG, ImageMagick, PNG thumbnail download, or Selenium</li>
+    </ul>
+  </li>
+  <li><strong>Deletes extra shields:</strong> Removes any shield files that are no longer in the spreadsheet</li>
+  <li><strong>Updates spreadsheet:</strong> Fills in the <code>HWY_Shield</code> column with GitHub URLs for all shields</li>
+</ol>
+
+<h4>Running the script:</h4>
+
+<pre>cd Corridor_Profile/Scripts
+python download_shields_wikipedia.py</pre>
+
+<div class="note">
+  <strong>Prerequisites:</strong>
+  <ul>
+    <li>Python environment with required packages: <code>pandas</code>, <code>openpyxl</code>, <code>requests</code>, <code>Pillow</code></li>
+    <li>Optional but recommended: <code>cairosvg</code> for SVG conversion (most reliable method)</li>
+    <li>The script will automatically handle missing converters and try alternative methods</li>
+  </ul>
+</div>
+
+<h4>Script output:</h4>
+<p>The script will display progress messages including:</p>
+<ul>
+  <li>Number of shields found in spreadsheet</li>
+  <li>Number of shields already downloaded</li>
+  <li>Download and conversion status for each shield</li>
+  <li>Number of shields deleted (if any were removed from spreadsheet)</li>
+  <li>Summary of all shields with dimensions and validation status</li>
+</ul>
+
+<h4>Output files:</h4>
+<ul>
+  <li><strong>Shield images:</strong> <code>Corridor_Profile/HWY_Shields/</code> – PNG files named by highway code (e.g., <code>IH0030.png</code>, <code>US0287.png</code>)</li>
+  <li><strong>Updated spreadsheet:</strong> <code>FTW_Corridors.xlsx</code> – <code>HWY_Shield</code> column populated with GitHub URLs</li>
+</ul>
+
+<h3 id="generate-gpkg">3. Generate and publish GeoPackage</h3>
+
+<p>After updating the corridor list and downloading shields, generate the final GeoPackage file and publish it to ArcGIS Online.</p>
+
+<h4>Generate the GeoPackage:</h4>
+
+<pre>cd Corridor_Profile/Scripts
+python FWT_Corridors.py</pre>
+
+<p>This will create the <code>FTW_Corridor_Profiles.gpkg</code> file in <code>Corridor_Profile/Output_Files/</code> with all the updated corridor data.</p>
+
+<h4>Commit and push changes to GitHub:</h4>
+
+<p>After successfully generating the GeoPackage, commit your changes to version control:</p>
+
+<pre>git add Corridor_Profile/Input_Files/FTW_Corridors.xlsx
+git add Corridor_Profile/HWY_Shields/*.png
+git add Corridor_Profile/Output_Files/FTW_Corridor_Profiles.gpkg
+git commit -m "Update corridors: [describe changes]"
+git push origin main</pre>
+
+<div class="note">
+  <strong>Note:</strong> Replace <code>[describe changes]</code> with a brief description of what corridors were added or removed.
+</div>
+
+<h4>Publish to ArcGIS Online:</h4>
+
+<ol>
+  <li>Log in to ArcGIS Online</li>
+  <li>Navigate to the <strong>Fort Worth</strong> group</li>
+  <li>Locate the existing <code>FTW_Corridor_Profiles</code> feature layer</li>
+  <li>Update the layer by uploading the new <code>FTW_Corridor_Profiles.gpkg</code> file:
+    <ul>
+      <li>Go to the layer's item details page</li>
+      <li>Click <strong>Update Data</strong></li>
+      <li>Select <strong>Overwrite Entire Layer</strong></li>
+      <li>Upload the new GeoPackage file</li>
+    </ul>
+  </li>
+  <li>Verify the update was successful</li>
+</ol>
+
+<h4>Dashboard automatically updates:</h4>
+
+<p>Once the feature layer is updated in ArcGIS Online, the Experience Builder dashboard will automatically reflect the changes. No manual updates to the dashboard configuration are needed—the Arcade scripts will dynamically read the new corridor data.</p>
+
+<div class="note">
+  <strong>Summary of workflow:</strong>
+  <ol>
+    <li>Update <code>FTW_Corridors.xlsx</code> (add/delete corridors, leave <code>HWY_Shield</code> empty for new ones)</li>
+    <li>Run <code>download_shields_wikipedia.py</code> to download shields and update spreadsheet</li>
+    <li>Run <code>FWT_Corridors.py</code> to generate the GeoPackage</li>
+    <li>Commit and push changes to GitHub</li>
+    <li>Upload the new GeoPackage to ArcGIS Online (Fort Worth group)</li>
+    <li>Dashboard updates automatically</li>
+  </ol>
+</div>
 
 <div style="height: 40vh;"></div>
 </main>

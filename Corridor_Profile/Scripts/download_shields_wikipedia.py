@@ -39,6 +39,7 @@ except ImportError:
 SPREADSHEET_PATH = '../Input_Files/FTW_Corridors.xlsx'
 OUTPUT_DIR = '../HWY_Shields'
 GITHUB_BASE_URL = 'https://pine-j.github.io/FDTMP_WebAPP/Corridor_Profile/HWY_Shields/'
+TARGET_HEIGHT = 500  # Exact height for all shields in pixels
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
@@ -88,7 +89,7 @@ def read_spreadsheet_shields():
 
 
 def get_existing_shields():
-    """Get list of existing valid shield PNG files"""
+    """Get list of existing valid shield PNG files with correct dimensions"""
     existing = []
     if os.path.exists(OUTPUT_DIR):
         for file in os.listdir(OUTPUT_DIR):
@@ -97,8 +98,17 @@ def get_existing_shields():
                 size = os.path.getsize(path)
                 # Only count files > 1000 bytes as valid (not placeholders)
                 if size > 1000:
-                    shield_code = file.replace('.png', '')
-                    existing.append(shield_code)
+                    # Check if shield has exactly the target height
+                    try:
+                        img = Image.open(path)
+                        width, height = img.size
+                        if height == TARGET_HEIGHT:
+                            shield_code = file.replace('.png', '')
+                            existing.append(shield_code)
+                        else:
+                            print(f"  [INVALID] {file} - Height {height}px != {TARGET_HEIGHT}px (will re-download)")
+                    except Exception as e:
+                        print(f"  [ERROR] {file} - Cannot read image: {str(e)}")
     return existing
 
 
@@ -234,18 +244,20 @@ def render_svg_to_png_selenium(svg_content, png_file):
         # Load in browser
         driver.get('about:blank')
         
-        # Inject SVG into page and render
+        # Inject SVG into page and render at target height
         driver.execute_script(f"""
             var svg = `data:image/svg+xml;base64,{svg_b64}`;
             var canvas = document.createElement('canvas');
-            canvas.width = 100;
-            canvas.height = 100;
+            canvas.width = {TARGET_HEIGHT * 2};  // Wide enough for most shields
+            canvas.height = {TARGET_HEIGHT};
             document.body.appendChild(canvas);
             
             var img = new Image();
             img.onload = function() {{
                 var ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, 100, 100);
+                var aspectRatio = img.width / img.height;
+                var newWidth = {TARGET_HEIGHT} * aspectRatio;
+                ctx.drawImage(img, 0, 0, newWidth, {TARGET_HEIGHT});
             }};
             img.src = svg;
         """)
@@ -255,9 +267,9 @@ def render_svg_to_png_selenium(svg_content, png_file):
         # Take screenshot
         screenshot = driver.get_screenshot_as_png()
         
-        # Crop to 100x100
+        # Crop to appropriate size
         img = Image.open(BytesIO(screenshot))
-        img = img.crop((0, 0, 100, 100))
+        img = img.crop((0, 0, TARGET_HEIGHT * 2, TARGET_HEIGHT))
         img.save(png_file, 'PNG')
         
         return True
@@ -275,7 +287,8 @@ def render_svg_to_png_selenium(svg_content, png_file):
 def render_svg_to_png_cairosvg(svg_content, png_file):
     """Render SVG to PNG using CairoSVG (Python library)"""
     try:
-        cairosvg.svg2png(bytestring=svg_content, write_to=png_file, output_width=100, output_height=100)
+        # Render at target height, width will be calculated to maintain aspect ratio
+        cairosvg.svg2png(bytestring=svg_content, write_to=png_file, output_height=TARGET_HEIGHT)
         return True
     except Exception as e:
         print(f"    CairoSVG render failed: {str(e)}")
@@ -283,23 +296,23 @@ def render_svg_to_png_cairosvg(svg_content, png_file):
 
 
 def download_png_thumbnail(shield_code, png_file):
-    """Download PNG thumbnail directly from Wikipedia as fallback (using larger 200px size)"""
+    """Download PNG thumbnail directly from Wikipedia as fallback (using 500px size)"""
     try:
         # Build thumbnail URL based on shield type
-        # Using 200px size which is more reliable than 100px
+        # Using 500px size to match our target height
         if shield_code.startswith('IH'):
             number = shield_code[2:].lstrip('0')
-            thumb_url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/I-{number}.svg/200px-I-{number}.svg.png'
+            thumb_url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/I-{number}.svg/{TARGET_HEIGHT}px-I-{number}.svg.png'
         elif shield_code.startswith('US'):
             number = shield_code[2:].lstrip('0')
-            thumb_url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/US_{number}.svg/200px-US_{number}.svg.png'
+            thumb_url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/US_{number}.svg/{TARGET_HEIGHT}px-US_{number}.svg.png'
         elif shield_code.startswith('SH'):
             number = shield_code[2:].lstrip('0')
             # Use the correct path format for Texas state highways
-            thumb_url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Texas_{number}.svg/200px-Texas_{number}.svg.png'
+            thumb_url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Texas_{number}.svg/{TARGET_HEIGHT}px-Texas_{number}.svg.png'
         elif shield_code.startswith('FM'):
             number = shield_code[2:].lstrip('0')
-            thumb_url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Texas_FM_{number}.svg/200px-Texas_FM_{number}.svg.png'
+            thumb_url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Texas_FM_{number}.svg/{TARGET_HEIGHT}px-Texas_FM_{number}.svg.png'
         else:
             return False
         
@@ -308,8 +321,12 @@ def download_png_thumbnail(shield_code, png_file):
         
         if response.status_code == 200:
             img = Image.open(BytesIO(response.content))
-            # Resize to 100x100 for consistency
-            img = img.resize((100, 100), Image.Resampling.LANCZOS)
+            # Resize to target height while maintaining aspect ratio
+            width, height = img.size
+            if height != TARGET_HEIGHT:
+                aspect_ratio = width / height
+                new_width = int(TARGET_HEIGHT * aspect_ratio)
+                img = img.resize((new_width, TARGET_HEIGHT), Image.Resampling.LANCZOS)
             img.save(png_file, 'PNG')
             return True
         else:
@@ -331,11 +348,12 @@ def render_svg_to_png_imagemagick(svg_content, png_file):
             tmp_path = tmp.name
         
         try:
+            # Resize to target height, maintaining aspect ratio (x prefix means height)
             subprocess.run([
                 'magick', 'convert',
                 tmp_path,
-                '-density', '150',
-                '-resize', '100x100',
+                '-density', '300',
+                '-resize', f'x{TARGET_HEIGHT}',
                 png_file
             ], check=True, capture_output=True, timeout=10)
             return True
@@ -361,6 +379,19 @@ def render_svg_to_png_online(svg_content, png_file):
         return False
 
 
+def validate_shield_dimensions(png_file):
+    """Validate that the shield has exactly the target height"""
+    try:
+        img = Image.open(png_file)
+        width, height = img.size
+        if height == TARGET_HEIGHT:
+            return True, width, height
+        else:
+            return False, width, height
+    except Exception as e:
+        return False, 0, 0
+
+
 def convert_svg_to_png(shield_code, svg_content, png_file):
     """Convert SVG to PNG using best available method"""
     print(f"[RENDER] {shield_code}...", end=' ', flush=True)
@@ -368,31 +399,47 @@ def convert_svg_to_png(shield_code, svg_content, png_file):
     # Try CairoSVG first (most reliable Python-based solution)
     if HAS_CAIROSVG:
         if render_svg_to_png_cairosvg(svg_content, png_file):
-            print("OK (CairoSVG)")
-            return True
+            valid, width, height = validate_shield_dimensions(png_file)
+            if valid:
+                print(f"OK (CairoSVG) - {width}x{height}px")
+                return True
+            else:
+                print(f"Invalid dimensions ({width}x{height}px), trying another method...")
     
     # Try ImageMagick as fallback
     if render_svg_to_png_imagemagick(svg_content, png_file):
-        print("OK (ImageMagick)")
-        return True
+        valid, width, height = validate_shield_dimensions(png_file)
+        if valid:
+            print(f"OK (ImageMagick) - {width}x{height}px")
+            return True
+        else:
+            print(f"Invalid dimensions ({width}x{height}px), trying another method...")
     
     # Try downloading PNG thumbnail directly from Wikipedia
     print("Trying PNG thumbnail...", end=' ', flush=True)
     if download_png_thumbnail(shield_code, png_file):
-        print("OK (PNG thumbnail)")
-        return True
+        valid, width, height = validate_shield_dimensions(png_file)
+        if valid:
+            print(f"OK (PNG thumbnail) - {width}x{height}px")
+            return True
+        else:
+            print(f"Invalid dimensions ({width}x{height}px), trying another method...")
     
     # Try Selenium as last resort
     if HAS_SELENIUM:
         try:
             if render_svg_to_png_selenium(svg_content, png_file):
-                print("OK (Selenium)")
-                return True
+                valid, width, height = validate_shield_dimensions(png_file)
+                if valid:
+                    print(f"OK (Selenium) - {width}x{height}px")
+                    return True
+                else:
+                    print(f"Invalid dimensions ({width}x{height}px)")
         except Exception as e:
             pass
     
     # No conversion method available
-    print("FAILED - No converter available")
+    print("FAILED - No converter available or dimensions invalid")
     return False
 
 
@@ -404,7 +451,8 @@ def main():
     print("Highway Shield Downloader - Automatic from Spreadsheet")
     print("="*70)
     print(f"Spreadsheet: {SPREADSHEET_PATH}")
-    print(f"Output directory: {OUTPUT_DIR}\n")
+    print(f"Output directory: {OUTPUT_DIR}")
+    print(f"Target height: {TARGET_HEIGHT}px (exact, width varies to maintain aspect ratio)\n")
     
     # Step 1: Read spreadsheet to get required shields
     spreadsheet_shields, df = read_spreadsheet_shields()
@@ -494,16 +542,23 @@ def main():
         print(f"  Failed deletions: {delete_failed}")
     print(f"{'='*70}\n")
     
-    # List all shields
+    # List all shields with dimensions
     print(f"All shields in {OUTPUT_DIR}:")
-    print(f"{'Name':<20} {'Size':<10} {'Status':<15}")
-    print("-" * 45)
+    print(f"{'Name':<20} {'Dimensions':<15} {'File Size':<12} {'Status':<15}")
+    print("-" * 62)
     for file in sorted(os.listdir(OUTPUT_DIR)):
         if file.endswith('.png'):
             path = os.path.join(OUTPUT_DIR, file)
             size = os.path.getsize(path)
-            status = "Converted" if size > 1000 else "Small/Invalid"
-            print(f"{file:<20} {size:<10} {status:<15}")
+            try:
+                img = Image.open(path)
+                width, height = img.size
+                dimensions = f"{width}x{height}"
+                status = "Valid" if height == TARGET_HEIGHT else f"Invalid (≠{TARGET_HEIGHT}px)"
+            except:
+                dimensions = "Error"
+                status = "Error"
+            print(f"{file:<20} {dimensions:<15} {size:<12} {status:<15}")
 
 
 if __name__ == "__main__":
