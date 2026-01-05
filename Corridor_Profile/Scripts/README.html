@@ -618,7 +618,7 @@ Truck_percentage_all = (Truck_AADT_all / AADT_all) × 100
   <li>Save the file</li>
 </ul>
 
-<h3 id="download-shields">2. Download highway shields</h3>
+<h3 id="download-shields">2. Download and publish highway shields</h3>
 
 <p>After updating the corridor list, run the shield download script to automatically download highway shield images and update the spreadsheet with their URLs.</p>
 
@@ -674,51 +674,28 @@ python download_shields_wikipedia.py</pre>
   <li><strong>Updated spreadsheet:</strong> <code>FTW_Corridors.xlsx</code> – <code>HWY_Shield</code> column populated with GitHub URLs</li>
 </ul>
 
+<h4>Push shields to GitHub:</h4>
+
+<p>Push the shields to GitHub so they are accessible via GitHub Pages URLs:</p>
+
+<pre>git add Corridor_Profile/HWY_Shields/
+git commit -m "Update highway shields"
+git push origin main</pre>
+
+<div class="note">
+  <strong>Important:</strong> The shields must be pushed to the GitHub repository at <a href="https://github.com/pine-j/FDTMP_WebAPP" target="_blank">https://github.com/pine-j/FDTMP_WebAPP</a> (specifically to <a href="https://github.com/pine-j/FDTMP_WebAPP/tree/main/Corridor_Profile/HWY_Shields" target="_blank">Corridor_Profile/HWY_Shields</a>) so they are accessible via GitHub Pages URLs.
+</div>
+
 <h3 id="generate-gpkg">3. Generate and publish GeoPackage</h3>
 
-<p>After updating the corridor list and downloading shields, generate the final GeoPackage file and publish it to ArcGIS Online.</p>
-
-<h4>Generate the GeoPackage:</h4>
+<p>After updating the corridor list and downloading shields, run the following command to generate the final GeoPackage:</p>
 
 <pre>cd Corridor_Profile/Scripts
 python FWT_Corridors.py</pre>
 
-<p>This will create the <code>FTW_Corridor_Profiles.gpkg</code> file in <code>Corridor_Profile/Output_Files/</code> with all the updated corridor data.</p>
+<p>This creates <code>FTW_Corridor_Profiles.gpkg</code> in <code>Corridor_Profile/Output_Files/</code>.</p>
 
-<h4>Commit and push changes to GitHub:</h4>
-
-<p>After successfully generating the GeoPackage, commit your changes to version control:</p>
-
-<pre>git add Corridor_Profile/Input_Files/FTW_Corridors.xlsx
-git add Corridor_Profile/HWY_Shields/*.png
-git add Corridor_Profile/Output_Files/FTW_Corridor_Profiles.gpkg
-git commit -m "Update corridors: [describe changes]"
-git push origin main</pre>
-
-<div class="note">
-  <strong>Note:</strong> Replace <code>[describe changes]</code> with a brief description of what corridors were added or removed.
-</div>
-
-<h4>Publish to ArcGIS Online:</h4>
-
-<ol>
-  <li>Log in to ArcGIS Online</li>
-  <li>Navigate to the <strong>Fort Worth</strong> group</li>
-  <li>Locate the existing <code>FTW_Corridor_Profiles</code> feature layer</li>
-  <li>Update the layer by uploading the new <code>FTW_Corridor_Profiles.gpkg</code> file:
-    <ul>
-      <li>Go to the layer's item details page</li>
-      <li>Click <strong>Update Data</strong></li>
-      <li>Select <strong>Overwrite Entire Layer</strong></li>
-      <li>Upload the new GeoPackage file</li>
-    </ul>
-  </li>
-  <li>Verify the update was successful</li>
-</ol>
-
-<h4>Dashboard automatically updates:</h4>
-
-<p>Once the feature layer is updated in ArcGIS Online, the Experience Builder dashboard will automatically reflect the changes. No manual updates to the dashboard configuration are needed—the Arcade scripts will dynamically read the new corridor data.</p>
+<p>Use the ArcGIS Project file at <code>J:\FTW District Transportation Master Plan - Documents\40_Tasks\01_Existing and Future Conditions\08 Web APP\ArcGIS_Project\FTW_Corridor_Profile.aprx</code> to update the feature layer in ArcGIS Online: <a href="https://jacobs.maps.arcgis.com/home/item.html?id=77179f9d19d34905aef39a4f5759b691" target="_blank">FTW_Corridor_Profiles</a>. Once published, the Experience Builder dashboard will automatically update.</p>
 
 <div class="note">
   <strong>Summary of workflow:</strong>
